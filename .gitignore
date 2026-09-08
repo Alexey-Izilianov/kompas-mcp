@@ -1,0 +1,21 @@
+# артефакты сборки
+KompasMcp.exe
+*.obj
+build_out.txt
+
+# interop-DLL КОМПАС (распространение запрещено лицензией ASCON)
+*.dll
+lib/
+
+# логи и выходные файлы
+kompas-mcp.log
+mcp-out/
+tests/*_out.jsonl
+
+# рабочая отладка (не часть проекта)
+tests/dbg_*
+tests/debug_std.jsonl
+tests/gen_poly.ps1
+tests/check_profile.ps1
+tests/sanitize.ps1
+tests/fix_encoding.ps1

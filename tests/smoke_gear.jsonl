@@ -1,0 +1,9 @@
+﻿{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gear_calc","arguments":{"m":2,"z1":20,"z2":40}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"gear_wheel","arguments":{"m":2,"z":40,"width":20,"bore":20,"path":"mcp-out\\gear_z40.m3d"}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"gear_wheel","arguments":{"m":2,"z":20,"width":20,"bore":15,"path":"mcp-out\\gear_z20.m3d"}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"render_png_3d","arguments":{}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

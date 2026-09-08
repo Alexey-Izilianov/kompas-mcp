@@ -1,0 +1,21 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_part","arguments":{"name":"Втулка","path":"mcp-out\\bush.m3d"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"circle","xc":0,"yc":0,"r":30}]}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"extrude_boss","arguments":{"depth":40,"base":true}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"set_material","arguments":{"name":"Сталь 45 ГОСТ 1050-88","density":7850}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"save_part","arguments":{}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"create_part","arguments":{"name":"Крышка фланцевая","path":"mcp-out\\flange_cap.m3d"}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"circle","xc":0,"yc":0,"r":50}]}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"extrude_boss","arguments":{"depth":12,"base":true}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"circle","xc":0,"yc":0,"r":22.5}]}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"extrude_boss","arguments":{"depth":25}}}
+{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"circle","xc":0,"yc":0,"r":15},{"type":"circle","xc":35,"yc":0,"r":4},{"type":"circle","xc":17.5,"yc":30.311,"r":4},{"type":"circle","xc":-17.5,"yc":30.311,"r":4},{"type":"circle","xc":-35,"yc":0,"r":4},{"type":"circle","xc":-17.5,"yc":-30.311,"r":4},{"type":"circle","xc":17.5,"yc":-30.311,"r":4}]}}}
+{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"extrude_cut","arguments":{"mode":"through"}}}
+{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"set_material","arguments":{"name":"Сталь 45 ГОСТ 1050-88","density":7850}}}
+{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"mass_properties","arguments":{}}}
+{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"save_part","arguments":{}}}
+{"jsonrpc":"2.0","id":18.5,"method":"tools/call","params":{"name":"render_png_3d","arguments":{}}}
+{"jsonrpc":"2.0","id":19,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

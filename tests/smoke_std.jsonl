@@ -1,0 +1,13 @@
+﻿{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"bolt","d":12,"length":60,"path":"mcp-out\\bolt_m12x60.m3d"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"nut","d":12,"path":"mcp-out\\nut_m12.m3d"}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"washer","d":12,"path":"mcp-out\\washer_12.m3d"}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"bearing","code":208,"path":"mcp-out\\bearing_208.m3d"}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"mass_properties","arguments":{}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"render_png_3d","arguments":{}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

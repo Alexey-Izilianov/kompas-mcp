@@ -1,0 +1,37 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_drawing","arguments":{"format":"A3","landscape":true,"path":"mcp-out\\flange.cdw","name":"Фланец (smoke Фаза 1)"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":50,"style":1}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":22.5,"style":1}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":15,"style":1}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":35,"style":3}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"circle_array","arguments":{"xc":120,"yc":180,"R":35,"n":6,"r":4,"startAngle":90}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"line","arguments":{"x1":60,"y1":180,"x2":180,"y2":180,"style":3}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"line","arguments":{"x1":120,"y1":120,"x2":120,"y2":240,"style":3}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"line","arguments":{"x1":62,"y1":180,"x2":178,"y2":180,"style":1}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"polyline","arguments":{"points":[[60.2,174],[62,180],[63.8,174]],"style":1}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"polyline","arguments":{"points":[[176.2,174],[178,180],[179.8,174]],"style":1}}}
+{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"text","arguments":{"x":54,"y":170,"h":7,"s":"А"}}}
+{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"text","arguments":{"x":180,"y":170,"h":7,"s":"А"}}}
+{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"diam_dim","arguments":{"xc":120,"yc":180,"r":50,"ang":-45}}}
+{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"diam_dim","arguments":{"xc":120,"yc":180,"r":15,"ang":135}}}
+{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"diam_dim","arguments":{"xc":120,"yc":180,"r":35,"ang":-135}}}
+{"jsonrpc":"2.0","id":19,"method":"tools/call","params":{"name":"diam_dim","arguments":{"xc":120,"yc":215,"r":4,"ang":60,"prefix":"6 отв. "}}}
+{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"hatch","arguments":{"x0":280,"y0":156,"angle":45,"step":2,"contour":[{"type":"line","x1":260,"y1":150,"x2":295,"y2":150},{"type":"line","x1":295,"y1":150,"x2":295,"y2":187},{"type":"line","x1":295,"y1":187,"x2":287.5,"y2":187},{"type":"line","x1":287.5,"y1":187,"x2":287.5,"y2":162},{"type":"line","x1":287.5,"y1":162,"x2":260,"y2":162},{"type":"line","x1":260,"y1":162,"x2":260,"y2":150}]}}}
+{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"hatch","arguments":{"x0":340,"y0":156,"angle":45,"step":2,"contour":[{"type":"line","x1":360,"y1":150,"x2":332.5,"y2":150},{"type":"line","x1":332.5,"y1":150,"x2":332.5,"y2":187},{"type":"line","x1":332.5,"y1":187,"x2":325,"y2":187},{"type":"line","x1":325,"y1":187,"x2":325,"y2":150},{"type":"line","x1":325,"y1":150,"x2":360,"y2":150},{"type":"line","x1":360,"y1":150,"x2":360,"y2":162},{"type":"line","x1":360,"y1":162,"x2":332.5,"y2":162}]}}}
+{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"line","arguments":{"x1":310,"y1":138,"x2":310,"y2":205,"style":3}}}
+{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"text","arguments":{"x":296,"y":213,"h":7,"s":"А-А"}}}
+{"jsonrpc":"2.0","id":24,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":260,"y1":150,"x2":360,"y2":150,"dx":0,"dy":-25,"ang":0,"sign":1}}}
+{"jsonrpc":"2.0","id":25,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":295,"y1":162,"x2":325,"y2":162,"dx":0,"dy":9,"ang":0,"sign":1}}}
+{"jsonrpc":"2.0","id":26,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":287.5,"y1":187,"x2":332.5,"y2":187,"dx":0,"dy":16,"ang":0,"sign":1}}}
+{"jsonrpc":"2.0","id":27,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":260,"y1":150,"x2":260,"y2":162,"dx":-15,"dy":0,"ang":90,"sign":0}}}
+{"jsonrpc":"2.0","id":28,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":287.5,"y1":162,"x2":287.5,"y2":187,"dx":-15,"dy":0,"ang":90,"sign":0}}}
+{"jsonrpc":"2.0","id":29,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":360,"y1":150,"x2":360,"y2":187,"dx":15,"dy":0,"ang":90,"sign":0}}}
+{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"rough","arguments":{"x":290,"y":150,"text":"Ra 6,3"}}}
+{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"rough","arguments":{"x":402,"y":284,"text":"Ra 6,3"}}}
+{"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"tech_demands","arguments":{"x":240,"y":100,"h":7,"items":["1. Неуказанные предельные отклонения размеров: ±IT14/2.","2. Острые кромки притупить R0,3 max."]}}}
+{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"fill_stamp","arguments":{"partNumber":"ФЛН.301517.001","description":"Фланец","material":"Сталь 45 ГОСТ 1050-88","mass":"0,824","scale":"1:1","sheetNumber":"1","numberOfSheets":"1"}}}
+{"jsonrpc":"2.0","id":34,"method":"tools/call","params":{"name":"save_document","arguments":{}}}
+{"jsonrpc":"2.0","id":35,"method":"tools/call","params":{"name":"render_png","arguments":{}}}
+{"jsonrpc":"2.0","id":36,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"jsonrpc":"2.0","id":37,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
