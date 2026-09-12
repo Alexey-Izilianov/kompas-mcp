@@ -12,7 +12,7 @@ namespace KompasMcp.Tools
   //  - doc3D = kompas.ActiveDocument3D(), part = doc3D.GetPart(pTop_Part=-1) (НЕ pNew_Part);
   //  - эскиз: o3d_sketch + SetPlane + Create + BeginEdit/EndEdit;
   //  - выдавливание: o3d_baseExtrusion / o3d_bossExtrusion + SetSideParam(forward, etBlind/etThroughAll, depth, 0, false);
-  //  - вырез: o3d_cutExtrusion + SetSideParam(true, etThroughAll, 0, 0, false) + directionType = dtBoth;
+  //  - вырез: o3d_cutExtrusion + SetSideParam(false, etThroughAll, 0, 0, false) + dtBoth (v22: side=true режет глубину/2);
   //  - вращение: o3d_bossRotated + SetSideParam(true, угол) + SetSketch (Step3d1);
   //  - фаска/скругление: o3d_chamfer/o3d_fillet + SetChamferParam/radius + array() ← рёбра по точкам;
   //  - материал/масса: part.SetMaterial(name, плотность), part.GetMass(); затем part.RebuildModel().
@@ -179,6 +179,7 @@ namespace KompasMcp.Tools
       string p = ToolRegistry.GetStr(a, "path", null);
       if (p == null) p = partPath;
       if (p == null) throw new ToolException("Нет пути: укажите path или создайте деталь через create_part");
+      if (!System.IO.Path.IsPathRooted(p)) p = System.IO.Path.GetFullPath(p); // относительный SaveAs молча не сохраняет
       GetDoc7().SaveAs(p);
       partPath = p;
       return new Dictionary<string, object> { { "saved", p } };
@@ -262,6 +263,7 @@ namespace KompasMcp.Tools
     static object OpenPart(string path)
     {
       if (path == null || path.Length == 0) throw new ToolException("Нет path");
+      if (!System.IO.Path.IsPathRooted(path)) path = System.IO.Path.GetFullPath(path);
       IApplication app7 = KompasHost.App7;
       object docObj = app7.Documents.Open(path, false, false);
       if (docObj == null) throw new ToolException("Documents.Open вернул null: " + path);
@@ -370,10 +372,21 @@ namespace KompasMcp.Tools
         bool through = cutMode == "through";
         endType = (short)(through ? End_Type.etThroughAll : End_Type.etBlind);
         if (!through) depth = ToolRegistry.GetDbl(a, "depth");
-        def.SetSideParam(forward, endType, depth, 0, false);
-        def.SetSketch(sk);
-        if (through) def.directionType = (short)Direction_Type.dtBoth;
-        else def.directionType = (short)Direction_Type.dtNormal;
+        // v22, проверено матрицей: сквозной вырез = side=false + dtBoth + etThroughAll
+        // (вариант flange.cs v20 side=true + dtBoth теперь режет только глубину/2,
+        //  dtNormal в обеих сторонах не режет ничего)
+        if (through)
+        {
+          def.SetSideParam(false, endType, 0, 0, false);
+          def.SetSketch(sk);
+          def.directionType = (short)Direction_Type.dtBoth;
+        }
+        else
+        {
+          def.SetSideParam(forward, endType, depth, 0, false);
+          def.SetSketch(sk);
+          def.directionType = (short)Direction_Type.dtNormal;
+        }
         if (!op.Create()) throw new ToolException("cutExtrusion.Create вернул 0");
         p.RebuildModel();
         return new Dictionary<string, object> { { "cut", true }, { "mass_kg", p.GetMass() } };

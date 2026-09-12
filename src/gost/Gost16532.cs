@@ -64,30 +64,34 @@ namespace KompasMcp.Gost
     // inv(t) = tan(t) - t
     static double Inv(double t) { return Math.Tan(t) - t; }
 
-    // Половина угловой толщины зуба на радиусе r (рад). Для r < db эвольвенты нет - NaN.
+    // Половина угловой толщины зуба на радиусе r (рад):
+    // psi(r) = s_r/(2r), s_r = 2r*(s/d + inv(a) - inv(a_r)), т.е. psi = s/d + inv(a) - inv(acos(rb/r)).
+    // Для r < rb эвольвенты нет - NaN (ниже rb профиль продолжается радиально с psi(rb)).
     public static double HalfAngleAtRad(double m, int z, double r)
     {
       double alpha = Math.PI * AlphaDeg / 180.0;
+      double rb = m * z * Math.Cos(alpha) / 2.0; // радиус основной окружности, r задан радиусом
       double d = m * z;
-      double db = d * Math.Cos(alpha);
       double s = Math.PI * m / 2.0;
-      if (r <= db) return double.NaN;
-      double phiR = Math.Acos(db / r);
-      double sr = r * (s / d + Inv(alpha) - Inv(phiR));
-      return sr / (2.0 * r);
+      if (r <= rb) return double.NaN;
+      return s / d + Inv(alpha) - Inv(Math.Acos(rb / r));
     }
 
     // Замкнутый контур колеса точками [x,y] для эскиза (аппроксимация эвольвенты отрезками).
-    // От db вверх - эвольвента, от db вниз до rf - радиальные отрезки (упрощение),
-    // вершины и впадины - хорды. Контур замкнут: последняя точка стыкуется с первой хордой по rf.
+    // Зуб центрирован на угле tooth*step: грани tooth*step ± psi(r).
+    // От rb вверх - эвольвента, от rb вниз до rf - радиальные отрезки,
+    // вершины и впадины - хорды. Контур замкнут: впадина - хорда от ножки зуба k к ножке зуба k+1.
     public static List<double[]> ProfilePoints(double m, int z, int samplesPerFlank)
     {
       var pts = new List<double[]>();
       double ra = m * z / 2.0 + m;
       double rf = m * z / 2.0 - 1.25 * m;
-      double db = m * z * Math.Cos(Math.PI * AlphaDeg / 180.0) / 2.0;
+      double rb = m * z * Math.Cos(Math.PI * AlphaDeg / 180.0) / 2.0;
       double step = 2.0 * Math.PI / z;
-      double rStart = Math.Max(db, rf);
+      double rStart = Math.Max(rb, rf);
+      double alpha = Math.PI * AlphaDeg / 180.0;
+      // psi на основной окружности - радиальное продолжение профиля ниже rb
+      double psiBase = Math.PI * m / 2.0 / (m * z) + Inv(alpha);
 
       // Добавление точки с фильтром дублей (нулевой сегмент делает контур невалидным для КОМПАСа)
       Action<double, double> add = delegate(double x, double y)
@@ -102,33 +106,31 @@ namespace KompasMcp.Gost
 
       for (int tooth = 0; tooth < z; tooth++)
       {
-        double baseAng = step * tooth;
-        // правая эвольвентная сторона зуба: от ножки к вершине
+        double c = step * tooth; // центр зуба
+        // левая грань: от ножки вверх к вершине (угол растёт, т.к. psi убывает с r)
         for (int i = 0; i <= samplesPerFlank; i++)
         {
           double r = rStart + (ra - rStart) * i / samplesPerFlank;
           double psi = HalfAngleAtRad(m, z, r);
-          if (double.IsNaN(psi)) psi = 0;
-          add(r * Math.Cos(baseAng + psi), r * Math.Sin(baseAng + psi));
+          if (double.IsNaN(psi)) psi = psiBase;
+          add(r * Math.Cos(c - psi), r * Math.Sin(c - psi));
         }
-        // вершина зуба: вторая точка на ra
-        double angTop = baseAng + step - HalfAngleAtRad(m, z, ra);
-        add(ra * Math.Cos(angTop), ra * Math.Sin(angTop));
-        // левая эвольвентная сторона: от вершины вниз
-        for (int i = samplesPerFlank; i >= 0; i--)
+        // вершина: правая точка на ra (хорда вершины)
+        double psiTop = HalfAngleAtRad(m, z, ra);
+        if (double.IsNaN(psiTop)) psiTop = psiBase;
+        add(ra * Math.Cos(c + psiTop), ra * Math.Sin(c + psiTop));
+        // правая грань: от вершины вниз
+        for (int i = samplesPerFlank - 1; i >= 0; i--)
         {
           double r = rStart + (ra - rStart) * i / samplesPerFlank;
           double psi = HalfAngleAtRad(m, z, r);
-          if (double.IsNaN(psi)) psi = 0;
-          add(r * Math.Cos(baseAng + step - psi), r * Math.Sin(baseAng + step - psi));
+          if (double.IsNaN(psi)) psi = psiBase;
+          add(r * Math.Cos(c + psi), r * Math.Sin(c + psi));
         }
-        // ножка радиально вниз до rf; хорда по впадине до первого пункта следующего зуба - отрезком
+        // ножка радиально вниз до rf; далее хорда по впадине к ножке следующего зуба
         if (rStart > rf)
         {
-          double psiS = HalfAngleAtRad(m, z, rStart);
-          if (double.IsNaN(psiS)) psiS = 0;
-          double angDown = baseAng + step - psiS;
-          add(rf * Math.Cos(angDown), rf * Math.Sin(angDown));
+          add(rf * Math.Cos(c + psiBase), rf * Math.Sin(c + psiBase));
         }
       }
       // замыкание: если последняя точка совпала с первой - убрать её

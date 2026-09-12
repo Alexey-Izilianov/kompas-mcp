@@ -94,12 +94,6 @@ namespace KompasMcp.Tools
         segs.Add(seg);
       }
       sk["elements"] = segs;
-      // ВРЕМЕННАЯ диагностика: дамп всех точек профиля
-      System.Text.StringBuilder sb = new System.Text.StringBuilder();
-      for (int i = 0; i < pts.Count; i++)
-        sb.Append(pts[i][0].ToString("R", System.Globalization.CultureInfo.InvariantCulture))
-          .Append(',').Append(pts[i][1].ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(';');
-      Log.Write("gear pts z=" + z + " samples=" + samples + ": " + sb.ToString());
       Tools3D.Sketch(sk);
 
       Dictionary<string, object> ex = new Dictionary<string, object>();
