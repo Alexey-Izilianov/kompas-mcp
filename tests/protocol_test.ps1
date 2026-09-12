@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$exe = "KompasMcp.exe"
+$exe = Join-Path (Split-Path $PSScriptRoot -Parent) "KompasMcp.exe"
 
 # 1) Протокол без КОМПАСа: initialize, ping, tools/list, tools/call ping,
 #    kompas_status (не должен запускать КОМПАС), неизвестный метод.

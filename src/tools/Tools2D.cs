@@ -90,10 +90,10 @@ namespace KompasMcp.Tools
         });
 
       ToolRegistry.Add("circle_array",
-        "Отверстия по окружности: n отверстий радиуса r на радиусе R вокруг (xc,yc), каждое с осевыми перекрестиями (style 3). startAngle — угол первого отверстия в градусах (по умолчанию 90, вверх).",
+        "Отверстия по окружности: n отверстий радиуса r на радиусе arrayRadius вокруг (xc,yc), каждое с осевыми перекрестиями (style 3). startAngle — угол первого отверстия в градусах (по умолчанию 90, вверх).",
         @"{""type"":""object"",""properties"":{
 ""xc"":{""type"":""number""},""yc"":{""type"":""number""},
-""R"":{""type"":""number"",""description"":""Радиус расположения""},
+""arrayRadius"":{""type"":""number"",""description"":""Радиус расположения""},
 ""n"":{""type"":""integer"",""description"":""Число отверстий""},
 ""r"":{""type"":""number"",""description"":""Радиус отверстия""},
 ""startAngle"":{""type"":""number"",""description"":""По умолчанию 90""},
@@ -372,7 +372,7 @@ namespace KompasMcp.Tools
       ksDocument2D d = GetDoc();
       double xc = ToolRegistry.GetDbl(a, "xc");
       double yc = ToolRegistry.GetDbl(a, "yc");
-      double R = ToolRegistry.GetDbl(a, "R");
+      double R = ToolRegistry.GetDbl(a, "arrayRadius");
       int n = ToolRegistry.GetInt(a, "n");
       double r = ToolRegistry.GetDbl(a, "r");
       double start = ToolRegistry.GetDbl(a, "startAngle", 90);

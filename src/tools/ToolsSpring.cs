@@ -15,20 +15,20 @@ namespace KompasMcp.Tools
       ToolRegistry.Add("spring_calc",
         "Расчёт винтовой цилиндрической пружины (ГОСТ 13765): индекс, жёсткость, коэффициент Валя, высота, длина проволоки.",
         @"{""type"":""object"",""properties"":{
-""d"":{""type"":""number"",""description"":""Диаметр проволоки (мм)""},
-""D"":{""type"":""number"",""description"":""Средний диаметр витка (мм)""},
+""wireDiameter"":{""type"":""number"",""description"":""Диаметр проволоки d (мм)""},
+""coilDiameter"":{""type"":""number"",""description"":""Средний диаметр витка D (мм)""},
 ""n"":{""type"":""integer"",""description"":""Число рабочих витков""},
-""t"":{""type"":""number"",""description"":""Шаг (0.3*D если не задан)""},
+""t"":{""type"":""number"",""description"":""Шаг (0.3*coilDiameter если не задан)""},
 ""G"":{""type"":""number"",""description"":""Модуль сдвига, МПа (78500 по умолчанию)""}}}",
         a => SpringCalc(a));
 
       ToolRegistry.Add("spring_create",
         "Создать 3D-пружину сжатия: спираль o3d_cylindricSpiral + выдавливание круга проволоки по траектории.",
         @"{""type"":""object"",""properties"":{
-""d"":{""type"":""number"",""description"":""Диаметр проволоки (мм)""},
-""D"":{""type"":""number"",""description"":""Средний диаметр витка (мм)""},
+""wireDiameter"":{""type"":""number"",""description"":""Диаметр проволоки d (мм)""},
+""coilDiameter"":{""type"":""number"",""description"":""Средний диаметр витка D (мм)""},
 ""n"":{""type"":""integer"",""description"":""Число рабочих витков""},
-""t"":{""type"":""number"",""description"":""Шаг (0.3*D если не задан)""},
+""t"":{""type"":""number"",""description"":""Шаг (0.3*coilDiameter если не задан)""},
 ""name"":{""type"":""string""},
 ""path"":{""type"":""string"",""description"":""Путь сохранения .m3d""}}}",
         a => SpringCreate(a));
@@ -36,8 +36,8 @@ namespace KompasMcp.Tools
 
     static object SpringCalc(Dictionary<string, object> a)
     {
-      double d = ToolRegistry.GetDbl(a, "d");
-      double D = ToolRegistry.GetDbl(a, "D");
+      double d = ToolRegistry.GetDbl(a, "wireDiameter");
+      double D = ToolRegistry.GetDbl(a, "coilDiameter");
       int n = ToolRegistry.GetInt(a, "n");
       double? t = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
       double? g = a.ContainsKey("G") ? (double?)ToolRegistry.GetDbl(a, "G") : null;
@@ -56,8 +56,8 @@ namespace KompasMcp.Tools
 
     static object SpringCreate(Dictionary<string, object> a)
     {
-      double d = ToolRegistry.GetDbl(a, "d");
-      double D = ToolRegistry.GetDbl(a, "D");
+      double d = ToolRegistry.GetDbl(a, "wireDiameter");
+      double D = ToolRegistry.GetDbl(a, "coilDiameter");
       int n = ToolRegistry.GetInt(a, "n");
       double? t = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
       Gost13765.Spring s = Gost13765.Calc(d, D, n, t, null);

@@ -5,7 +5,7 @@
 {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":22.5,"style":1}}}
 {"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":15,"style":1}}}
 {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":35,"style":3}}}
-{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"circle_array","arguments":{"xc":120,"yc":180,"R":35,"n":6,"r":4,"startAngle":90}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"circle_array","arguments":{"xc":120,"yc":180,"arrayRadius":35,"n":6,"r":4,"startAngle":90}}}
 {"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"line","arguments":{"x1":60,"y1":180,"x2":180,"y2":180,"style":3}}}
 {"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"line","arguments":{"x1":120,"y1":120,"x2":120,"y2":240,"style":3}}}
 {"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"line","arguments":{"x1":62,"y1":180,"x2":178,"y2":180,"style":1}}}

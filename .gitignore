@@ -16,11 +16,5 @@ tests/*_out.jsonl
 tests/dbg_*
 tests/debug_std*.jsonl
 tests/dump_pts.txt
-tests/gen_poly.ps1
-tests/gen_poly100.ps1
-tests/gen_star.ps1
-tests/gen_from_dump.ps1
-tests/check_profile.ps1
-tests/profile_area.ps1
 tests/sanitize.ps1
 tests/fix_encoding.ps1
