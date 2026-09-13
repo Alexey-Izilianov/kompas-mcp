@@ -64,6 +64,10 @@ namespace KompasMcp.Davinci
       psi.CreateNoWindow = true;
       psi.StandardOutputEncoding = new System.Text.UTF8Encoding(false);
       psi.StandardErrorEncoding = new UTF8Encoding(false);
+      // Кодировку stdin задаём вручную: ProcessStartInfo.StandardInputEncoding
+      // в .NET Framework нет, StreamWriter берёт кодировку консоли (OEM) и
+      // кириллица доходит до модели битой (CP1251/CP866-микс) — поэтому
+      // WriteStdin пишет UTF-8 байты напрямую в BaseStream.
       if (!string.IsNullOrEmpty(o.Workspace)) psi.WorkingDirectory = o.Workspace;
 
       Log.Write("runner: spawn " + psi.Arguments);
@@ -98,8 +102,10 @@ namespace KompasMcp.Davinci
       try
       {
         string message = (string)arg;
-        proc.StandardInput.Write(message);
-        proc.StandardInput.Flush();
+        // UTF-8 байтами напрямую: кодировка StreamWriter = кодировка консоли (OEM)
+        byte[] bytes = new UTF8Encoding(false).GetBytes(message);
+        proc.StandardInput.BaseStream.Write(bytes, 0, bytes.Length);
+        proc.StandardInput.BaseStream.Flush();
       }
       catch (Exception e) { Log.Error("runner stdin", e); FireError(e); }
       finally { try { proc.StandardInput.Close(); } catch { } }

@@ -37,10 +37,10 @@ class PanelTest
     f.Submit();
     Check("empty submit no echo", f.LogText.Length == 0);
 
-    // 2. эхо-режим
+    // 2. чат-формат: сообщение юзера + эхо-строка
     f.InputBox.Text = "привет";
     f.Submit();
-    Check("echo prefix", f.LogText.Contains("> привет"));
+    Check("user block", f.LogText.Contains("Ты") && f.LogText.Contains("привет"));
     Check("echo notice", f.LogText.Contains("[эхо]"));
     Check("input cleared", f.InputBox.Text.Length == 0);
 

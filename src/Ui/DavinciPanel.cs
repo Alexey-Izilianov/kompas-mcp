@@ -88,6 +88,19 @@ namespace KompasMcp.Ui
       }
     }
 
+    // Чат-сообщения из любого потока (runner/сессия).
+    public static void AppendUser(string text) { ChatAppend(f => f.AppendUserMessage(text), text); }
+    public static void AppendAssistant(string text) { ChatAppend(f => f.AppendAssistantMessage(text), text); }
+
+    static void ChatAppend(Action<PanelForm> apply, string text)
+    {
+      PanelForm f;
+      lock (Gate) { f = form; }
+      if (f == null) return;
+      try { f.BeginInvoke((MethodInvoker)delegate { apply(f); }); }
+      catch (Exception e) { Log.Error("panel.ChatAppend", e); }
+    }
+
     // Потокобезопасное добавление строки в лог (вызывается из любого потока).
     public static void AppendLog(string text)
     {
@@ -116,12 +129,15 @@ namespace KompasMcp.Ui
 
   public class PanelForm : Form
   {
-    readonly TextBox logBox;
+    readonly RichTextBox logBox;
     readonly TextBox inputBox;
     readonly Button sendButton;
     readonly Button abortButton;
     readonly Label statusLabel;
     readonly System.Windows.Forms.Timer statusTimer;
+    readonly Font plainFont;
+    readonly Font whoFont;
+    readonly Font statusFont;
     bool busy;
 
     public bool Busy
@@ -158,13 +174,19 @@ namespace KompasMcp.Ui
       statusLabel.TextAlign = ContentAlignment.MiddleLeft;
       statusLabel.Text = "КОМПАС: …";
 
-      logBox = new TextBox();
+      logBox = new RichTextBox();
       logBox.Dock = DockStyle.Fill;
-      logBox.Multiline = true;
       logBox.ReadOnly = true;
-      logBox.ScrollBars = ScrollBars.Vertical;
-      logBox.Font = new Font("Segoe UI", 9f);
+      logBox.BorderStyle = BorderStyle.None;
+      logBox.BackColor = Color.White;
+      logBox.ScrollBars = RichTextBoxScrollBars.Vertical;
+      logBox.Font = new Font("Segoe UI", 9.5f);
       logBox.TabStop = false;
+      logBox.WordWrap = true;
+      logBox.HideSelection = false;
+      plainFont = logBox.Font;
+      whoFont = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+      statusFont = new Font("Segoe UI", 8.5f);
 
       inputBox = new TextBox();
       inputBox.Dock = DockStyle.Bottom;
@@ -213,7 +235,7 @@ namespace KompasMcp.Ui
       string text = inputBox.Text.Trim();
       if (text.Length == 0) return;
       inputBox.Clear();
-      AppendLogLine("> " + text);
+      AppendUserMessage(text);
       Action<string> handler = DavinciPanel.SubmitHandler;
       if (handler != null)
       {
@@ -232,11 +254,51 @@ namespace KompasMcp.Ui
       }
     }
 
+    // ---- чат-формат ----
+
+    void BeginParagraph()
+    {
+      if (logBox.TextLength > 0) logBox.AppendText(Environment.NewLine + Environment.NewLine);
+      logBox.SelectionStart = logBox.TextLength;
+    }
+
+    void AppendStyled(string who, Color whoColor, string text)
+    {
+      BeginParagraph();
+      logBox.SelectionFont = whoFont;
+      logBox.SelectionColor = whoColor;
+      logBox.AppendText(who);
+      logBox.SelectionFont = plainFont;
+      logBox.SelectionColor = Color.FromArgb(25, 25, 25);
+      logBox.AppendText(Environment.NewLine + text);
+      ScrollEnd();
+    }
+
+    public void AppendUserMessage(string text)
+    {
+      AppendStyled("Ты", Color.FromArgb(47, 84, 150), text);
+    }
+
+    public void AppendAssistantMessage(string text)
+    {
+      AppendStyled("Давинчи", Color.FromArgb(0, 128, 96), text);
+    }
+
+    // Служебная строка (тулы, итоги) — серым мелким.
     public void AppendLogLine(string line)
     {
       if (logBox.TextLength > 0) logBox.AppendText(Environment.NewLine);
-      logBox.AppendText(line);
       logBox.SelectionStart = logBox.TextLength;
+      logBox.SelectionFont = statusFont;
+      logBox.SelectionColor = Color.FromArgb(130, 130, 130);
+      logBox.AppendText(line);
+      ScrollEnd();
+    }
+
+    void ScrollEnd()
+    {
+      logBox.SelectionStart = logBox.TextLength;
+      logBox.SelectionLength = 0;
       logBox.ScrollToCaret();
     }
 

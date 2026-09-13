@@ -88,7 +88,7 @@ namespace KompasMcp.Davinci
       if (ev.SessionId != null) lock (Gate) { lastSessionId = ev.SessionId; }
       // ассистентский текст — главное содержимое ответа
       if (!string.IsNullOrEmpty(ev.AssistantText))
-        DavinciPanel.AppendLog(ev.AssistantText);
+        DavinciPanel.AppendAssistant(ev.AssistantText);
       else if (ev.Type == "assistant" && !string.IsNullOrEmpty(ev.ToolName))
         DavinciPanel.AppendLog("[тул] " + ev.ToolName);
       else if (ev.Type == "result")
