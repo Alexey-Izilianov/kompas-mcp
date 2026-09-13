@@ -19,7 +19,7 @@ namespace KompasMcp.Tools
         a => KompasHost.Status());
 
       ToolRegistry.Add("kompas_start",
-        "Запустить экземпляр КОМПАС-3D (MCP держит свой процесс). visible=false по умолчанию — окно скрыто, автоматизация работает. Повторный вызов безопасен.",
+        "Запустить экземпляр КОМПАС-3D (MCP держит свой процесс). visible=false по умолчанию — окно скрыто, автоматизация работает. Повторный вызов безопасен. В attach-режиме (копилот) запрещён.",
         @"{""type"":""object"",""properties"":{""visible"":{""type"":""boolean"",""description"":""Показать окно КОМПАСа (по умолчанию false)""}}}",
         a =>
         {
@@ -28,17 +28,18 @@ namespace KompasMcp.Tools
         });
 
       ToolRegistry.Add("kompas_show",
-        "Показать/скрыть окно КОМПАСа, запущенного MCP-сервером.",
+        "Показать/скрыть окно КОМПАСа, запущенного MCP-сервером. В attach-режиме (копилот) запрещён — окно КОМПАСа юзера не изменяется.",
         @"{""type"":""object"",""properties"":{""visible"":{""type"":""boolean"",""description"":""true = показать, false = скрыть""}},""required"":[""visible""]}",
         a =>
         {
-          if (!KompasHost.IsRunning) throw new ToolException("КОМПАС не запущен (kompas_start)");
+          if (!KompasHost.IsRunning && !KompasHost.IsAttach)
+            throw new ToolException("КОМПАС не запущен (kompas_start)");
           KompasHost.Show(ToolRegistry.GetBool(a, "visible", true));
           return KompasHost.Status();
         });
 
       ToolRegistry.Add("kompas_stop",
-        "Полностью закрыть экземпляр КОМПАС, запущенный MCP-сервером (несохранённые изменения теряются). Чужие экземпляры КОМПАСа не трогаются.",
+        "Полностью закрыть экземпляр КОМПАС, запущенный MCP-сервером (несохранённые изменения теряются). Чужие экземпляры КОМПАСа не трогаются. В attach-режиме (копилот) только отсоединяется от КОМПАСа юзера, не закрывая его.",
         "{}",
         a =>
         {

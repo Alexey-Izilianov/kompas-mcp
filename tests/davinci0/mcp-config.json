@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "kompas-mcp": {
+      "command": "C:/Projects/kompas-test/kompas-mcp/KompasMcp.exe"
+    }
+  }
+}

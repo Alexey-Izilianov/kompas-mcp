@@ -25,6 +25,14 @@ namespace KompasMcp.Tools
     static string docPath;          // куда сохранён
     static int viewNum;             // номер листового вида
 
+    // Сброс при Stop/Detach: поля держат COM-ссылки на закрытый документ.
+    public static void Reset()
+    {
+      doc = null;
+      docPath = null;
+      viewNum = 0;
+    }
+
     // ---- реестр ----
 
     public static void Register()

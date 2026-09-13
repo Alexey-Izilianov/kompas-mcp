@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using ComTypes = System.Runtime.InteropServices.ComTypes;
 using Kompas6API5;
 using KompasAPI7;
 
@@ -10,21 +11,39 @@ namespace KompasMcp
   // Жизненный цикл КОМПАС: MCP держит СВОЙ экземпляр (каждый Activator.CreateInstance
   // поднимает новый процесс KOMPAS.Exe — грабля из memory). PID определяем дифференцированным
   // снапшотом процессов до/после создания, чтобы при Stop убить только свой.
+  //
+  // Режим attach (флаги --attach --rot-name KOMPAS_DAVINCHI_<PID>): работаем с видимым
+  // КОМПАСом юзера через объект, зарегистрированный библиотекой «Давинчи» в ROT
+  // (Этап 3). Start/Show запрещены, Stop=Detach (только отпускаем COM-ссылки).
   public static class KompasHost
   {
     static KompasObject kompas;
     static IApplication app7;
     static int pid;
     static HashSet<int> pidsBefore;
+    static bool attach;
+    static string rotName;
+    static ComTypes.IBindCtx attachBindCtx;
 
     public static bool IsRunning { get { return kompas != null; } }
+    public static bool IsAttach { get { return attach; } }
     public static int Pid { get { return pid; } }
 
     public static KompasObject Kompas
     {
       get
       {
-        if (kompas == null) Start(false);
+        if (kompas == null)
+        {
+          if (attach)
+          {
+            TryAttach();
+            if (kompas == null)
+              throw new ToolException("attach: моникер " + (rotName ?? "KOMPAS_DAVINCHI_<PID>") +
+                " не найден в ROT — запущена ли библиотека «Давинчи» в КОМПАСе?");
+          }
+          else Start(false);
+        }
         return kompas;
       }
     }
@@ -45,6 +64,7 @@ namespace KompasMcp
 
     public static void Start(bool visible)
     {
+      if (attach) throw new ToolException("attach-режим: запуск собственного экземпляра КОМПАСа запрещён (работаем с КОМПАСом юзера)");
       if (kompas != null) { Show(visible); return; }
       Log.Write("start: создаю KOMPAS.Application.5");
       pidsBefore = new HashSet<int>(PidsOfKompas());
@@ -60,6 +80,7 @@ namespace KompasMcp
 
     public static void Show(bool visible)
     {
+      if (attach) throw new ToolException("attach-режим: окно КОМПАСа юзера не изменяется");
       if (kompas == null) return;
       try { app7.Visible = visible; }
       catch { try { kompas.Visible = visible; } catch (Exception e) { Log.Error("Show(" + visible + ")", e); } }
@@ -67,14 +88,9 @@ namespace KompasMcp
 
     public static void Stop()
     {
+      if (attach) { Detach(); return; }
       Log.Write("stop: закрываю свой экземпляр, pid=" + pid);
-      if (kompas != null)
-      {
-        try { if (app7 != null) Marshal.ReleaseComObject(app7); } catch (Exception e) { Log.Error("release app7", e); }
-        try { Marshal.ReleaseComObject(kompas); } catch (Exception e) { Log.Error("release kompas", e); }
-        kompas = null;
-        app7 = null;
-      }
+      ReleaseRefs();
       if (pid != 0)
       {
         try
@@ -89,9 +105,120 @@ namespace KompasMcp
         catch (Exception e) { Log.Error("kill " + pid, e); }
         pid = 0;
       }
+      ResetDocumentStatics();
       GC.Collect();
       GC.WaitForPendingFinalizers();
     }
+
+    // ---- attach (Давинчи) ----
+
+    const string RotPrefix = "KOMPAS_DAVINCHI_";
+
+    public static void ConfigureFromArgs(string[] args)
+    {
+      for (int i = 0; i < args.Length; i++)
+      {
+        if (args[i] == "--attach") attach = true;
+        else if (args[i] == "--rot-name" && i + 1 < args.Length) { rotName = args[i + 1]; i++; }
+      }
+      if (attach)
+      {
+        Log.Write("attach: режим включён, rotName=" + (rotName ?? "(auto)"));
+        TryAttach();
+      }
+    }
+
+    // Если rotName задан — точное совпадение; иначе первый моникер KOMPAS_DAVINCHI_<PID>.
+    static void TryAttach()
+    {
+      try
+      {
+        if (attachBindCtx == null)
+        {
+          ComTypes.IBindCtx bc;
+          if (CreateBindCtx(0, out bc) != 0 || bc == null)
+            throw new ToolException("CreateBindCtx failed");
+          attachBindCtx = bc;
+        }
+        ComTypes.IRunningObjectTable rot;
+        if (GetRunningObjectTable(0, out rot) != 0 || rot == null)
+          throw new ToolException("GetRunningObjectTable failed");
+        ComTypes.IEnumMoniker enumMk;
+        rot.EnumRunning(out enumMk);
+        if (enumMk == null) throw new ToolException("ROT: EnumRunning вернул null");
+        enumMk.Reset();
+        ComTypes.IMoniker[] mks = new ComTypes.IMoniker[1];
+        IntPtr pFetched = Marshal.AllocHGlobal(4);
+        try
+        {
+        while (enumMk.Next(1, mks, pFetched) == 0 && Marshal.ReadInt32(pFetched) == 1)
+        {
+          string display;
+          try { mks[0].GetDisplayName(attachBindCtx, null, out display); }
+          catch { continue; }
+          if (display == null) continue;
+          string name = display;
+          int bang = name.IndexOf('!');
+          if (bang >= 0) name = name.Substring(bang + 1);
+          bool match = rotName != null
+            ? string.Equals(name, rotName, StringComparison.OrdinalIgnoreCase)
+            : name.StartsWith(RotPrefix, StringComparison.OrdinalIgnoreCase);
+          if (!match) continue;
+          object obj;
+          try { rot.GetObject(mks[0], out obj); }
+          catch (Exception e) { Log.Error("attach: GetObject(" + display + ")", e); continue; }
+          KompasObject k = obj as KompasObject;
+          if (k == null)
+          {
+            Log.Write("attach: объект в ROT (" + display + ") не KompasObject");
+            continue;
+          }
+          kompas = k;
+          int tail;
+          if (name.Length > RotPrefix.Length &&
+              int.TryParse(name.Substring(RotPrefix.Length), out tail))
+            pid = tail;
+          Log.Write("attach: подключён, rotName=" + name + ", pid=" + pid);
+          return;
+        }
+        }
+        finally { Marshal.FreeHGlobal(pFetched); }
+        Log.Write("attach: подходящий моникер в ROT не найден");
+      }
+      catch (Exception e)
+      {
+        Log.Error("attach", e);
+      }
+    }
+
+    static void Detach()
+    {
+      Log.Write("attach: detach — COM-ссылки отпущены, КОМПАС юзера не трогаем");
+      ReleaseRefs();
+      pid = 0;
+      ResetDocumentStatics();
+      GC.Collect();
+      GC.WaitForPendingFinalizers();
+    }
+
+    static void ReleaseRefs()
+    {
+      if (app7 != null)
+      {
+        try { Marshal.ReleaseComObject(app7); } catch (Exception e) { Log.Error("release app7", e); }
+        app7 = null;
+      }
+      if (kompas != null)
+      {
+        try { Marshal.ReleaseComObject(kompas); } catch (Exception e) { Log.Error("release kompas", e); }
+        kompas = null;
+      }
+    }
+
+    [DllImport("ole32.dll")]
+    static extern int GetRunningObjectTable(uint reserved, out ComTypes.IRunningObjectTable prot);
+    [DllImport("ole32.dll")]
+    static extern int CreateBindCtx(uint reserved, out ComTypes.IBindCtx ppbc);
 
     static List<int> PidsOfKompas()
     {
@@ -107,11 +234,21 @@ namespace KompasMcp
 
     // ---- информация для tools ----
 
+    // Сброс статических полей документов (Tools2D/Tools3D держат COM-ссылки
+    // на закрытый документ — после Stop/Detach они мертвы).
+    static void ResetDocumentStatics()
+    {
+      try { Tools.Tools2D.Reset(); } catch (Exception e) { Log.Error("Tools2D.Reset", e); }
+      try { Tools.Tools3D.Reset(); } catch (Exception e) { Log.Error("Tools3D.Reset", e); }
+    }
+
     public static Dictionary<string, object> Status()
     {
       var st = new Dictionary<string, object>();
+      st["mode"] = attach ? "attach" : "own";
       st["running"] = kompas != null;
       st["pid"] = pid;
+      if (attach) st["rotName"] = rotName;
       if (kompas == null)
       {
         st["visible"] = false;

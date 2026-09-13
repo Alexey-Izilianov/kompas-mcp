@@ -16,6 +16,7 @@ namespace KompasMcp
       Log.Write("=== kompas-mcp started, pid=" + ProcessId() + " ===");
       try { Console.OutputEncoding = new UTF8Encoding(false); }
       catch (Exception e) { Log.Error("OutputEncoding", e); }
+      KompasHost.ConfigureFromArgs(args);
 
       try
       {

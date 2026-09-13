@@ -27,6 +27,18 @@ namespace KompasMcp.Tools
     static readonly Dictionary<int, ksEntity> sketches = new Dictionary<int, ksEntity>();
     static int sketchSeq;
 
+    // Сброс при Stop/Detach: поля держат COM-ссылки на закрытый документ.
+    public static void Reset()
+    {
+      doc3D = null;
+      doc7 = null;
+      part = null;
+      partPath = null;
+      lastSketch = null;
+      sketches.Clear();
+      sketchSeq = 0;
+    }
+
     public static void Register()
     {
       ToolRegistry.Add("create_part",
