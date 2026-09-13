@@ -54,7 +54,8 @@ namespace KompasMcp.Tools
         a => OpenPart(ToolRegistry.GetStr(a, "path")));
 
       ToolRegistry.Add("sketch",
-        "Создать эскиз на плоскости (plane: XOY/XOZ/YOZ, по умолчанию XOY). elements: [{type:'circle',xc,yc,r} | {type:'line',x1,y1,x2,y2} | {type:'arc',xc,yc,r,x1,y1,x2,y2,direction}]. Возвращает sketchId для операций.",
+        "Создать эскиз на плоскости (plane: XOY/XOZ/YOZ, по умолчанию XOY). elements: [{type:'circle',xc,yc,r} | {type:'line',x1,y1,x2,y2} | {type:'arc',xc,yc,r,x1,y1,x2,y2,direction}]. Возвращает sketchId для операций. " +
+        "Внимание: локальные оси эскиза на XOZ/YOZ повёрнуты относительно глобальных X/Y — при сомнениях используйте XOY со смещением (offset).",
         @"{""type"":""object"",""properties"":{
 ""plane"":{""type"":""string"",""enum"":[""XOY"",""XOZ"",""YOZ""],""description"":""По умолчанию XOY""},
 ""elements"":{""type"":""array"",""items"":{""type"":""object""}}},
@@ -72,12 +73,13 @@ namespace KompasMcp.Tools
         a => Extrude(a, false));
 
       ToolRegistry.Add("extrude_cut",
-        "Вырезать выдавливанием. mode: 'through'=сквозное (в обе стороны), 'blind'=на глубину depth.",
+        "Вырезать выдавливанием. mode: 'through'=сквозное (в обе стороны), 'blind'=на глубину depth. " +
+        "Сторона выреза подбирается автоматически (тул проверяет массу); если вырез не удалил материала — вернётся ошибка.",
         @"{""type"":""object"",""properties"":{
 ""sketchId"":{""type"":""integer"",""description"":""По умолчанию последний эскиз""},
 ""mode"":{""type"":""string"",""enum"":[""through"",""blind""],""description"":""По умолчанию through""},
 ""depth"":{""type"":""number"",""description"":""Для mode=blind""},
-""direction"":{""type"":""integer"",""description"":""1=вперёд, -1=назад (для blind), по умолчанию 1""}},
+""direction"":{""type"":""integer"",""description"":""Подсказка стороны для blind (1/-1), по умолчанию 1 — при неудаче сторона подбирается автоматически""}},
 ""required"":[]}",
         a => Extrude(a, true));
 
@@ -461,34 +463,41 @@ namespace KompasMcp.Tools
 
       if (cut)
       {
-        op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cutExtrusion);
-        ksCutExtrusionDefinition def = (ksCutExtrusionDefinition)op.GetDefinition();
         string cutMode = ToolRegistry.GetStr(a, "mode", "through");
         bool through = cutMode == "through";
         endType = (short)(through ? End_Type.etThroughAll : End_Type.etBlind);
         if (!through) depth = ToolRegistry.GetDbl(a, "depth");
-        // v22, проверено матрицей: сквозной вырез = side=false + dtBoth + etThroughAll
-        // (вариант flange.cs v20 side=true + dtBoth теперь режет только глубину/2,
-        //  dtNormal в обеих сторонах не режет ничего)
-        if (through)
+        // v22: вырез капризен к стороне и типу направления — Create возвращает 1,
+        // но материал не трогается (dtNormal+blind уводит вырез "в никуда").
+        // Проверено матрицей: сквозной надёжно работает как side=false + dtBoth.
+        // Стратегия: перебор вариантов с контролем массы; пустой вырез = не успех.
+        int[,] variants = through
+          ? new int[,] { { 0, (short)Direction_Type.dtBoth }, { 1, (short)Direction_Type.dtBoth } }
+          : new int[,] { { forward ? 1 : 0, (short)Direction_Type.dtNormal },
+                         { forward ? 0 : 1, (short)Direction_Type.dtNormal },
+                         { 1, (short)Direction_Type.dtBoth } };
+        double mass0 = p.GetMass();
+        bool done = false;
+        for (int i = 0; i < variants.GetLength(0) && !done; i++)
         {
-          def.SetSideParam(false, endType, 0, 0, false);
+          op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cutExtrusion);
+          ksCutExtrusionDefinition def = (ksCutExtrusionDefinition)op.GetDefinition();
+          def.SetSideParam(variants[i, 0] == 1, endType, depth, 0, false);
           def.SetSketch(sk);
-          def.directionType = (short)Direction_Type.dtBoth;
+          def.directionType = (short)variants[i, 1];
+          if (!op.Create()) continue;
+          p.RebuildModel();
+          if (p.GetMass() < mass0 - 1e-9) done = true; // материал реально убран
         }
-        else
-        {
-          def.SetSideParam(forward, endType, depth, 0, false);
-          def.SetSketch(sk);
-          def.directionType = (short)Direction_Type.dtNormal;
-        }
-        if (!op.Create()) throw new ToolException("cutExtrusion.Create вернул 0");
-        p.RebuildModel();
+        if (!done)
+          throw new ToolException("вырез ничего не удалил (масса не изменилась): " +
+            "эскиз, вероятно, вне материала или параллелен телу — переместите эскиз на тело");
         return new Dictionary<string, object> { { "cut", true }, { "mass_kg", p.GetMass() } };
       }
 
       depth = ToolRegistry.GetDbl(a, "depth");
       bool baseOp = ToolRegistry.GetBool(a, "base", false);
+      double massBefore = p.GetMass();
       op = (ksEntity)p.NewEntity((short)(baseOp ? Obj3dType.o3d_baseExtrusion : Obj3dType.o3d_bossExtrusion));
       // определения не взаимозаменяемы: bossExtrusion отдаёт ksBossExtrusionDefinition,
       // QI к ksBaseExtrusionDefinition падает (E_NOINTERFACE)
@@ -509,7 +518,10 @@ namespace KompasMcp.Tools
       }
       if (!op.Create()) throw new ToolException("extrusion.Create вернул 0");
       p.RebuildModel();
-      return new Dictionary<string, object> { { "boss", true }, { "mass_kg", p.GetMass() } };
+      double massNow = p.GetMass();
+      if (massNow < massBefore + 1e-9)
+        throw new ToolException("выдавливание ничего не добавило (масса не изменилась) — эскиз, вероятно, уже совпадает с телом");
+      return new Dictionary<string, object> { { "boss", true }, { "mass_kg", massNow } };
     }
 
     internal static object Revolve(Dictionary<string, object> a, bool cut)
@@ -520,21 +532,34 @@ namespace KompasMcp.Tools
 
       if (cut)
       {
-        ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cutRotated);
-        ksCutRotatedDefinition def = (ksCutRotatedDefinition)op.GetDefinition();
-        def.directionType = (short)Direction_Type.dtNormal;
-        def.SetSideParam(true, angle);
-        def.SetSketch(sk);
-        if (!op.Create()) throw new ToolException("cutRotated.Create вернул 0");
+        double mass0 = p.GetMass();
+        bool done = false;
+        for (int i = 0; i < 2 && !done; i++)
+        {
+          ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cutRotated);
+          ksCutRotatedDefinition def = (ksCutRotatedDefinition)op.GetDefinition();
+          def.directionType = (short)Direction_Type.dtNormal;
+          def.SetSideParam(i == 0, angle);
+          def.SetSketch(sk);
+          if (!op.Create()) continue;
+          p.RebuildModel();
+          if (p.GetMass() < mass0 - 1e-9) done = true;
+        }
+        if (!done)
+          throw new ToolException("вырез вращением ничего не удалил (масса не изменилась) — проверьте расположение эскиза");
       }
       else
       {
+        double mass0 = p.GetMass();
         ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_bossRotated);
         ksBossRotatedDefinition def = (ksBossRotatedDefinition)op.GetDefinition();
         def.directionType = (short)Direction_Type.dtNormal;
         def.SetSideParam(true, angle);
         def.SetSketch(sk);
         if (!op.Create()) throw new ToolException("bossRotated.Create вернул 0");
+        p.RebuildModel();
+        if (p.GetMass() < mass0 + 1e-9)
+          throw new ToolException("операция вращения ничего не добавила (масса не изменилась)");
       }
       p.RebuildModel();
       var res = new Dictionary<string, object>();

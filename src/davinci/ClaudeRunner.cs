@@ -118,9 +118,15 @@ namespace KompasMcp.Davinci
         string line;
         while ((line = proc.StandardOutput.ReadLine()) != null)
         {
-          Log.Write("runner: event " + (line.Length > 300 ? line.Substring(0, 300) : line));
           StreamEvent ev = StreamEvent.Parse(line);
-          if (ev == null) continue;
+          // thinking_tokens — спам по ~10 строк на оборот, в лог не пишем
+          if (ev == null)
+          {
+            Log.Write("runner: unparsed " + (line.Length > 300 ? line.Substring(0, 300) : line));
+            continue;
+          }
+          if (ev.Type == "system" && ev.Subtype == "thinking_tokens") continue;
+          Log.Write("runner: event " + (line.Length > 300 ? line.Substring(0, 300) : line));
           if (ev.SessionId != null) SessionId = ev.SessionId;
           if (OnEvent != null) OnEvent(ev);
         }
