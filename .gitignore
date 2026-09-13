@@ -17,4 +17,5 @@ tests/dbg_*
 tests/debug_std*.jsonl
 tests/dump_pts.txt
 tests/sanitize.ps1
-tests/fix_encoding.ps1*.exe
+tests/fix_encoding.ps1
+*.exe
