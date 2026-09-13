@@ -39,8 +39,9 @@ namespace KompasMcp
           {
             TryAttach();
             if (kompas == null)
-              throw new ToolException("attach: моникер " + (rotName ?? "KOMPAS_DAVINCHI_<PID>") +
-                " не найден в ROT — запущена ли библиотека «Давинчи» в КОМПАСе?");
+              throw new ToolException("attach: КОМПАС не найден в ROT — запущен ли КОМПАС у юзера? " +
+                "(библиотека «Давинчи» ищет моникер " + (rotName ?? "KOMPAS_DAVINCHI_<PID>") +
+                ", затем активный KOMPAS.Application.5)");
           }
           else Start(false);
         }
@@ -183,11 +184,42 @@ namespace KompasMcp
         }
         }
         finally { Marshal.FreeHGlobal(pFetched); }
-        Log.Write("attach: подходящий моникер в ROT не найден");
+        // Fallback (Этап 3, эксперимент): КОМПАС-3D v22 сам регистрирует себя в ROT
+        // под моникерами !{6B0B5194-...} (KOMPAS.Application.5) и !{8C3719B5-...}
+        // (KOMPAS.Application.7). GetActiveObject подключается к запущенному
+        // видимому КОМПАСу юзера без всякой библиотеки «Давинчи».
+        if (kompas == null && rotName == null) TryGetActiveKompas();
+        if (kompas == null)
+          Log.Write("attach: подходящий моникер в ROT не найден");
       }
       catch (Exception e)
       {
         Log.Error("attach", e);
+      }
+    }
+
+    // Подключение к активному КОМПАСу через ROT-регистрацию самого КОМПАСа.
+    // PID достаём из снапшота процессов (если запущен ровно один экземпляр).
+    static void TryGetActiveKompas()
+    {
+      try
+      {
+        object o = Marshal.GetActiveObject("KOMPAS.Application.5");
+        KompasObject k = o as KompasObject;
+        if (k == null)
+        {
+          Log.Write("attach: GetActiveObject вернул объект не KompasObject");
+          return;
+        }
+        kompas = k;
+        var pids = PidsOfKompas();
+        pid = pids.Count == 1 ? pids[0] : 0;
+        rotName = "KOMPAS_ACTIVE";
+        Log.Write("attach: подключён через GetActiveObject (KOMPAS.Application.5), pid=" + pid);
+      }
+      catch (Exception e)
+      {
+        Log.Write("attach: GetActiveObject не нашёл активный КОМПАС: " + e.Message);
       }
     }
 

@@ -1,0 +1,53 @@
+REGEDIT4
+
+[HKEY_CLASSES_ROOT\KompasMcp.Davinci]
+@="KompasMcp.Davinci.DavinciLibrary"
+
+[HKEY_CLASSES_ROOT\KompasMcp.Davinci\CLSID]
+@="{E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90}"
+
+[HKEY_CLASSES_ROOT\CLSID\{E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90}]
+@="KompasMcp.Davinci.DavinciLibrary"
+
+[HKEY_CLASSES_ROOT\CLSID\{E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90}\InprocServer32]
+@="mscoree.dll"
+"ThreadingModel"="Both"
+"Class"="KompasMcp.Davinci.DavinciLibrary"
+"Assembly"="KompasMcp.Davinci, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+"RuntimeVersion"="v4.0.30319"
+
+[HKEY_CLASSES_ROOT\CLSID\{E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90}\InprocServer32\0.0.0.0]
+"Class"="KompasMcp.Davinci.DavinciLibrary"
+"Assembly"="KompasMcp.Davinci, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+"RuntimeVersion"="v4.0.30319"
+
+[HKEY_CLASSES_ROOT\CLSID\{E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90}\ProgId]
+@="KompasMcp.Davinci"
+
+[HKEY_CLASSES_ROOT\CLSID\{E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90}\Implemented Categories\{62C8FE65-4EBB-45E7-B440-6E39B2CDBF29}]
+
+[HKEY_CLASSES_ROOT\KompasMcp.DavinciLegacy]
+@="KompasMcp.Davinci.DavinciLegacy"
+
+[HKEY_CLASSES_ROOT\KompasMcp.DavinciLegacy\CLSID]
+@="{4C8D9F52-1E63-4B7A-9D4F-2A8B5C6E7D10}"
+
+[HKEY_CLASSES_ROOT\CLSID\{4C8D9F52-1E63-4B7A-9D4F-2A8B5C6E7D10}]
+@="KompasMcp.Davinci.DavinciLegacy"
+
+[HKEY_CLASSES_ROOT\CLSID\{4C8D9F52-1E63-4B7A-9D4F-2A8B5C6E7D10}\InprocServer32]
+@="mscoree.dll"
+"ThreadingModel"="Both"
+"Class"="KompasMcp.Davinci.DavinciLegacy"
+"Assembly"="KompasMcp.Davinci, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+"RuntimeVersion"="v4.0.30319"
+
+[HKEY_CLASSES_ROOT\CLSID\{4C8D9F52-1E63-4B7A-9D4F-2A8B5C6E7D10}\InprocServer32\0.0.0.0]
+"Class"="KompasMcp.Davinci.DavinciLegacy"
+"Assembly"="KompasMcp.Davinci, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+"RuntimeVersion"="v4.0.30319"
+
+[HKEY_CLASSES_ROOT\CLSID\{4C8D9F52-1E63-4B7A-9D4F-2A8B5C6E7D10}\ProgId]
+@="KompasMcp.DavinciLegacy"
+
+[HKEY_CLASSES_ROOT\CLSID\{4C8D9F52-1E63-4B7A-9D4F-2A8B5C6E7D10}\Implemented Categories\{62C8FE65-4EBB-45E7-B440-6E39B2CDBF29}]
