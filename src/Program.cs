@@ -17,6 +17,13 @@ namespace KompasMcp
       try { Console.OutputEncoding = new UTF8Encoding(false); }
       catch (Exception e) { Log.Error("OutputEncoding", e); }
       KompasHost.ConfigureFromArgs(args);
+      bool panel = false;
+      for (int i = 0; i < args.Length; i++) { if (args[i] == "--panel") panel = true; }
+      if (panel)
+      {
+        Log.Write("panel: flag --panel, открываю панель Давинчи");
+        Ui.DavinciPanel.Start();
+      }
 
       try
       {
@@ -46,8 +53,10 @@ namespace KompasMcp
       catch (Exception e)
       {
         Log.Error("main loop", e);
+        Ui.DavinciPanel.Close();
         return 1;
       }
+      Ui.DavinciPanel.Close();
       Log.Write("=== kompas-mcp exit ===");
       return 0;
     }

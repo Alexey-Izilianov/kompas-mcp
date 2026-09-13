@@ -17,6 +17,9 @@ $refs = @()
 foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Kompas6Constants3D.dll","KAPITypes.dll")) {
   $refs += "-r:" + (Join-Path $libDir $n)
 }
+# WinForms-панель Давинчи
+$refs += "-r:System.Windows.Forms.dll"
+$refs += "-r:System.Drawing.dll"
 
 $argList = @("-nologo","-codepage:65001","-platform:x64","-target:exe","-optimize+","-out:$out") + $refs + $sources
 & $csc @argList
