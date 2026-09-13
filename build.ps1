@@ -19,9 +19,19 @@ foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Komp
 $refs += "-r:System.Windows.Forms.dll"
 $refs += "-r:System.Drawing.dll"
 
-$argList = @("-nologo","-codepage:65001","-platform:x64","-target:exe","-optimize+","-out:$out") + $refs + $sources
+$argList = @("-nologo","-codepage:65001","-platform:x64","-target:exe","-optimize+","-out:$out")
+# пиксель-арт аватар Давинчи как иконка exe
+$ico = Join-Path $dir "davinci\avatar.ico"
+if (Test-Path $ico) { $argList += "/win32icon:$ico" }
+$argList += $refs + $sources
 & $csc @argList
 if ($LASTEXITCODE -ne 0) { throw "csc failed: $LASTEXITCODE" }
+
+# аватар рядом с exe (шапка панели чата)
+foreach ($n in @("avatar.png","avatar.ico")) {
+  $src = Join-Path $dir ("davinci\" + $n)
+  if (Test-Path $src) { Copy-Item $src $dir -Force }
+}
 
 # interop-DLL должны лежать рядом с exe
 foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Kompas6Constants3D.dll","KAPITypes.dll")) {

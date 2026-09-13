@@ -180,11 +180,94 @@ namespace KompasMcp.Tools
 ""path"":{""type"":""string"",""description"":""По умолчанию <деталь>.png""},
 ""resolution"":{""type"":""integer"",""description"":""DPI, по умолчанию 96""}}}",
         a => Render3D(a));
+
+      // ---- сборки (.a3d) ----
+
+      ToolRegistry.Add("create_assembly",
+        "Создать новую сборку (3D, .a3d). Становится активным документом для assembly_* и остальных 3D-tools.",
+        @"{""type"":""object"",""properties"":{
+""name"":{""type"":""string"",""description"":""Имя сборки (в дереве)""},
+""path"":{""type"":""string"",""description"":""Полный путь сохранения .a3d (по умолчанию kompas-test\\mcp-out\\assembly.a3d)""}}}",
+        a => CreateAssembly(a));
+
+      ToolRegistry.Add("open_assembly",
+        "Открыть существующую сборку .a3d.",
+        @"{""type"":""object"",""properties"":{""path"":{""type"":""string""}},""required"":[""path""]}",
+        a => OpenPart(ToolRegistry.GetStr(a, "path")));
+
+      ToolRegistry.Add("assembly_add_component",
+        "Вставить компонент (файл .m3d/.a3d) в текущую сборку. external: true=ссылкой на внешний файл, false=телом.",
+        @"{""type"":""object"",""properties"":{
+""path"":{""type"":""string"",""description"":""Файл компонента""},
+""external"":{""type"":""boolean"",""description"":""По умолчанию false (телом)""}},
+""required"":[""path""]}",
+        a => AddComponent(a));
+
+      ToolRegistry.Add("assembly_components",
+        "Список компонентов текущей сборки.",
+        "{}",
+        a => ComponentsList());
     }
 
     // ---- состояние ----
 
     internal static object CreatePart(Dictionary<string, object> a) { return CreatePartImpl(a); }
+
+    // ---- сборки ----
+
+    static object CreateAssembly(Dictionary<string, object> a)
+    {
+      IApplication app7 = KompasHost.App7;
+      object docObj = app7.Documents.Add(DocumentTypeEnum.ksDocumentAssembly, true);
+      if (docObj == null) throw new ToolException("Documents.Add(assembly) вернул null");
+      doc7 = (IKompasDocument3D)docObj;
+      doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
+      part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
+      if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null для сборки");
+      string name = ToolRegistry.GetStr(a, "name", null);
+      if (name != null) part.name = name;
+      partPath = ToolRegistry.GetStr(a, "path", Paths.Out("assembly.a3d"));
+      lastSketch = null;
+      sketches.Clear();
+      sketchSeq = 0;
+      Log.Write("create_assembly: " + part.name + " -> " + partPath);
+      return new Dictionary<string, object> { { "assembly", part.name }, { "path", partPath } };
+    }
+
+    static object AddComponent(Dictionary<string, object> a)
+    {
+      string path = ToolRegistry.GetStr(a, "path");
+      if (path == null) throw new ToolException("Нет path (.m3d/.a3d компонента)");
+      if (!System.IO.Path.IsPathRooted(path)) path = System.IO.Path.GetFullPath(path);
+      if (!System.IO.File.Exists(path)) throw new ToolException("Файл компонента не найден: " + path);
+      bool external = ToolRegistry.GetBool(a, "external", false);
+      // Паттерн КОМПАС: сначала placeholder pNew_Part, затем SetPartFromFile на него
+      ksPart slot = (ksPart)GetDoc3D().GetPart((int)Part_Type.pNew_Part);
+      if (slot == null) throw new ToolException("GetPart(pNew_Part) вернул null (не сборка?)");
+      bool ok = GetDoc3D().SetPartFromFile(path, slot, external);
+      if (!ok) throw new ToolException("SetPartFromFile вернул false: " + path);
+      try { GetPart().RebuildModel(); } catch (Exception e) { Log.Error("assembly rebuild", e); }
+      Dictionary<string, object> res = (Dictionary<string, object>)ComponentsList();
+      res["added"] = path;
+      return res;
+    }
+
+    static object ComponentsList()
+    {
+      ksPartCollection col = (ksPartCollection)GetDoc3D().PartCollection(true);
+      if (col == null) throw new ToolException("PartCollection вернул null");
+      int n = col.GetCount();
+      var list = new List<object>();
+      for (int i = 0; i < n; i++)
+      {
+        ksPart p = (ksPart)col.GetByIndex(i);
+        var info = new Dictionary<string, object>();
+        try { info["name"] = p.name; }
+        catch { info["name"] = "?"; }
+        list.Add(info);
+      }
+      return new Dictionary<string, object> { { "count", n }, { "components", list } };
+    }
 
     internal static object SavePart(Dictionary<string, object> a)
     {

@@ -19,3 +19,7 @@ tests/dump_pts.txt
 tests/sanitize.ps1
 tests/fix_encoding.ps1
 *.exe
+
+# аватар рядом с exe — артефакт сборки (копия из davinci/)
+/avatar.png
+/avatar.ico

@@ -3,6 +3,7 @@
 // события stream-json сокращённо попадают в лог панели через DavinciPanel.AppendLog.
 // Диалог непрерывный: следующее сообщение резюмится по session_id.
 using System;
+using System.IO;
 using System.Threading;
 using KompasMcp.Ui;
 
@@ -29,7 +30,23 @@ namespace KompasMcp.Davinci
         "2. НЕ вызывай kompas_stop — это отключает тебя от КОМПАСа пользователя.\n" +
         "3. НЕ сохраняй документы без явной просьбы пользователя.\n" +
         "4. Готовые артефакты (скрипты, чертежи, отчёты) пиши файлами в рабочую папку mcp-out.\n" +
-        "5. Отвечай по-русски, кратко и по делу; для длинных шагов используй инструменты, а не рассказы.";
+        "5. Отвечай по-русски, кратко и по делу; для длинных шагов используй инструменты, а не рассказы.\n" +
+        "6. Если в сообщении есть блок [Вложения пользователя] — сначала прочитай перечисленные файлы " +
+        "(это ТЗ, референсы и справочные материалы юзера) и строй работу с их учётом.";
+    }
+
+    // Каталог вложений юзера: <workspace>\attach. Относительный workspace
+    // считается от папки exe (тот же путь получает claude как WorkingDirectory).
+    public static string AttachmentDir()
+    {
+      DavinciConfig c = cfg;
+      if (c == null) { c = DavinciConfig.Load(); cfg = c; }
+      string ws = c.Workspace;
+      if (string.IsNullOrEmpty(ws)) ws = "mcp-out";
+      if (!Path.IsPathRooted(ws)) ws = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ws);
+      string dir = Path.Combine(ws, "attach");
+      Directory.CreateDirectory(dir);
+      return dir;
     }
 
     // Инициализация при старте сервера с --panel: конфиг + mcp-config.

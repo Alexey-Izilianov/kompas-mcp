@@ -70,7 +70,27 @@ class PanelTest
       Thread.Sleep(50);
     }
     Check("background AppendLog", f.LogText.Contains("[ответ] НАРИСУЙ ФЛАНЕЦ"));
+
+    // 4. вложения: AttachFile копирует файл и подставляет путь в сообщение
+    string srcFile = System.IO.Path.Combine(
+      System.IO.Path.GetTempPath(), "kompas-panel-test-attach.txt");
+    System.IO.File.WriteAllText(srcFile, "ТЗ-тест");
+    string dest = f.AttachFile(srcFile);
+    Check("attach copied", System.IO.File.Exists(dest)
+      && dest.Contains(System.IO.Path.Combine("attach", "")));
+    Check("attach pending", f.PendingAttachments.Length == 1);
+    string got2 = null;
+    DavinciPanel.SubmitHandler = delegate(string s) { got2 = s; };
+    f.InputBox.Text = "ознакомься";
+    f.Submit();
+    Check("message with attachment", got2 != null
+      && got2.Contains("ознакомься")
+      && got2.Contains("[Вложения пользователя]")
+      && got2.Contains(dest));
+    Check("attachments cleared", f.PendingAttachments.Length == 0);
     DavinciPanel.SubmitHandler = null;
+
+    System.IO.File.Delete(srcFile);
     f.Dispose();
   }
 }
