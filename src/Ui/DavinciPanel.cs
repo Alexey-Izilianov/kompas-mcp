@@ -75,6 +75,19 @@ namespace KompasMcp.Ui
       catch (Exception e) { Log.Error("panel.BringToFront", e); }
     }
 
+    // Индикатор занятости из любого потока (runner/сессия).
+    public static bool Busy
+    {
+      set
+      {
+        PanelForm f;
+        lock (Gate) { f = form; }
+        if (f == null) return;
+        try { f.BeginInvoke((MethodInvoker)delegate { f.Busy = value; }); }
+        catch (Exception e) { Log.Error("panel.Busy", e); }
+      }
+    }
+
     // Потокобезопасное добавление строки в лог (вызывается из любого потока).
     public static void AppendLog(string text)
     {
@@ -106,8 +119,25 @@ namespace KompasMcp.Ui
     readonly TextBox logBox;
     readonly TextBox inputBox;
     readonly Button sendButton;
+    readonly Button abortButton;
     readonly Label statusLabel;
     readonly System.Windows.Forms.Timer statusTimer;
+    bool busy;
+
+    public bool Busy
+    {
+      get { return busy; }
+      set
+      {
+        busy = value;
+        try
+        {
+          sendButton.Enabled = !busy;
+          sendButton.Text = busy ? "Работаю…" : "Отправить (Ctrl+Enter)";
+        }
+        catch { }
+      }
+    }
 
     public PanelForm()
     {
@@ -147,13 +177,24 @@ namespace KompasMcp.Ui
       sendButton.Text = "Отправить (Ctrl+Enter)";
       sendButton.Height = 30;
 
+      abortButton = new Button();
+      abortButton.Dock = DockStyle.Bottom;
+      abortButton.Text = "Прервать";
+      abortButton.Height = 28;
+      abortButton.Enabled = false;
+
       // порядок Dock: сначала нижние, потом Fill
       Controls.Add(logBox);
       Controls.Add(inputBox);
       Controls.Add(sendButton);
+      Controls.Add(abortButton);
       Controls.Add(statusLabel);
 
       sendButton.Click += delegate { Submit(); };
+      abortButton.Click += delegate
+      {
+        try { KompasMcp.Davinci.DavinciSession.Abort(); } catch (Exception e) { Log.Error("panel.Abort", e); }
+      };
       inputBox.KeyDown += delegate(object s, KeyEventArgs e)
       {
         if (e.Control && e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Submit(); }
@@ -166,7 +207,7 @@ namespace KompasMcp.Ui
       RefreshStatus();
     }
 
-    // Отправка сообщения: handler Этапа 5 или эхо.
+    // Отправка сообщения: DavinciSession (Этап 5) или эхо.
     public void Submit()
     {
       string text = inputBox.Text.Trim();
@@ -176,16 +217,18 @@ namespace KompasMcp.Ui
       Action<string> handler = DavinciPanel.SubmitHandler;
       if (handler != null)
       {
+        Busy = true;
         try { handler(text); }
         catch (Exception e)
         {
           Log.Error("panel.Submit", e);
           AppendLogLine("[ошибка обработчика: " + e.Message + "]");
+          Busy = false;
         }
       }
       else
       {
-        AppendLogLine("[эхо] (Этап 4: реальный запуск модели будет подключён на Этапе 5)");
+        AppendLogLine("[эхо] (копилот не подключён: нет davinci.json / Init)");
       }
     }
 

@@ -16,6 +16,7 @@ namespace KompasMcp.Davinci
     public string Workspace;                 // рабочий каталог сессии
     public string SystemPrompt;              // --append-system-prompt (Этап 5)
     public string AllowedTools = "mcp__kompas-mcp";
+    public string Model;                     // --model ("" = по умолчанию)
     public bool Restricted = true;
     public int TimeoutSec;                   // 0 = без таймаута (стоп только вручную)
   }
@@ -81,6 +82,8 @@ namespace KompasMcp.Davinci
       b.Append(" --mcp-config \"").Append(o.McpConfigPath).Append("\"");
       if (!string.IsNullOrEmpty(o.AllowedTools))
         b.Append(" --allowedTools \"").Append(o.AllowedTools).Append("\"");
+      if (!string.IsNullOrEmpty(o.Model))
+        b.Append(" --model \"").Append(o.Model).Append("\"");
       b.Append(" --permission-prompts none");
       if (o.Restricted) b.Append(" --restricted");
       if (!string.IsNullOrEmpty(o.SystemPrompt))

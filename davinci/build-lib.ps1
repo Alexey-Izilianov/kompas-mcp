@@ -13,7 +13,7 @@ if (-not (Test-Path (Join-Path $libDir "KompasLibrary.dll"))) { throw "interop K
 $out = Join-Path $dir "KompasMcp.Davinci.dll"
 $refLib = "-r:" + (Join-Path $libDir "KompasLibrary.dll")
 $refApi = "-r:" + (Join-Path $libDir "Kompas6API5.dll")
-$src = Join-Path (Split-Path $dir -Parent) "src\davinci\DavinciLib.cs"
+$src = Join-Path $dir "src\DavinciLib.cs"
 $argList = @("-nologo", "-codepage:65001", "-platform:x64", "-target:library", "-optimize+", "-out:$out", $refLib, $refApi, $src)
 & $csc @argList
 if ($LASTEXITCODE -ne 0) { throw "csc failed: $LASTEXITCODE" }

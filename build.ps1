@@ -8,11 +8,9 @@ $libDir = Join-Path $dir "lib"
 if (-not (Test-Path $libDir)) { $libDir = Split-Path $dir -Parent }
 
 $out = Join-Path $dir "KompasMcp.exe"
-# src\davinci — это COM-библиотека «Давинчи» (собирается отдельно davinci\build-lib.ps1),
-# в сервер не входит: она тянет interop KompasLibrary.dll
-$sources = Get-ChildItem -Recurse (Join-Path $dir "src") -Filter *.cs |
-  Where-Object { $_.FullName -notlike "*\davinci\*" } |
-  ForEach-Object { $_.FullName }
+# COM-библиотека Давинчи живёт в davinci\src\DavinciLib.cs (сборка отдельно,
+# davinci\build-lib.ps1) и в сервер не входит — тянет interop KompasLibrary.dll
+$sources = Get-ChildItem -Recurse (Join-Path $dir "src") -Filter *.cs | ForEach-Object { $_.FullName }
 $refs = @()
 foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Kompas6Constants3D.dll","KAPITypes.dll")) {
   $refs += "-r:" + (Join-Path $libDir $n)

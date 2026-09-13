@@ -1,0 +1,7 @@
+{
+  "kompasMcpExe": "C:\\Projects\\kompas-test\\kompas-mcp\\KompasMcp.exe",
+  "model": "",
+  "workspace": "C:\\Projects\\kompas-test\\kompas-mcp\\mcp-out",
+  "timeoutSec": 900,
+  "claudeCmd": "claude.cmd"
+}

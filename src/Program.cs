@@ -22,6 +22,17 @@ namespace KompasMcp
       if (panel)
       {
         Log.Write("panel: flag --panel, открываю панель Давинчи");
+        try
+        {
+          Davinci.DavinciSession.Init();
+          Ui.DavinciPanel.SubmitHandler = Davinci.DavinciSession.Submit;
+          Log.Write("panel: копилот подключён (DavinciSession)");
+        }
+        catch (Exception e)
+        {
+          Log.Error("panel init", e);
+          Ui.DavinciPanel.SubmitHandler = null; // эхо-режим
+        }
         Ui.DavinciPanel.Start();
       }
 
