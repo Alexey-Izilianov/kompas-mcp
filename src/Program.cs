@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 using KompasMcp.JsonLib;
 
 namespace KompasMcp
@@ -17,25 +18,54 @@ namespace KompasMcp
       try { Console.OutputEncoding = new UTF8Encoding(false); }
       catch (Exception e) { Log.Error("OutputEncoding", e); }
       KompasHost.ConfigureFromArgs(args);
-      bool panel = false;
-      for (int i = 0; i < args.Length; i++) { if (args[i] == "--panel") panel = true; }
-      if (panel)
-      {
-        Log.Write("panel: flag --panel, открываю панель Давинчи");
-        try
-        {
-          Davinci.DavinciSession.Init();
-          Ui.DavinciPanel.SubmitHandler = Davinci.DavinciSession.Submit;
-          Log.Write("panel: копилот подключён (DavinciSession)");
-        }
-        catch (Exception e)
-        {
-          Log.Error("panel init", e);
-          Ui.DavinciPanel.SubmitHandler = null; // эхо-режим
-        }
-        Ui.DavinciPanel.Start();
-      }
+      if (HasFlag(args, "--panel")) return PanelMain();
+      StdioLoop();
+      Ui.DavinciPanel.Close();
+      Log.Write("=== kompas-mcp exit ===");
+      return 0;
+    }
 
+    static bool HasFlag(string[] args, string flag)
+    {
+      for (int i = 0; i < args.Length; i++)
+        if (args[i] == flag) return true;
+      return false;
+    }
+
+    // Панельный режим: процесс порождён меню «Давинчи → Панель» из КОМПАСа
+    // (stdin у него может отсутствовать), поэтому живём, пока открыта панель,
+    // а stdio-луп обслуживаем в фоне.
+    static int PanelMain()
+    {
+      Log.Write("panel: flag --panel, открываю панель Давинчи");
+      try
+      {
+        Davinci.DavinciSession.Init();
+        Ui.DavinciPanel.SubmitHandler = Davinci.DavinciSession.Submit;
+        Log.Write("panel: копилот подключён (DavinciSession)");
+      }
+      catch (Exception e)
+      {
+        Log.Error("panel init", e);
+        Ui.DavinciPanel.SubmitHandler = null; // эхо-режим
+      }
+      if (!Ui.DavinciPanel.Start())
+      {
+        // панель уже открыта в другом процессе — там её вывели на передний план
+        Log.Write("panel: уже запущена в другом процессе, выходим");
+        return 0;
+      }
+      Thread stdio = new Thread(StdioLoop);
+      stdio.IsBackground = true;
+      stdio.Start();
+      Ui.DavinciPanel.WaitClosed();
+      Davinci.DavinciSession.Shutdown();
+      Log.Write("=== kompas-mcp exit ===");
+      return 0;
+    }
+
+    static void StdioLoop()
+    {
       try
       {
         using (var stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false)))
@@ -63,13 +93,9 @@ namespace KompasMcp
       }
       catch (Exception e)
       {
-        Log.Error("main loop", e);
-        Ui.DavinciPanel.Close();
-        return 1;
+        // в панельном режиме stdin может отсутствовать вовсе — панель не трогаем
+        Log.Error("stdio loop", e);
       }
-      Ui.DavinciPanel.Close();
-      Log.Write("=== kompas-mcp exit ===");
-      return 0;
     }
 
     static int ProcessId()

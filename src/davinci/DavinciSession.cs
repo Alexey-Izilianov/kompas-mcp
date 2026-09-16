@@ -78,6 +78,7 @@ namespace KompasMcp.Davinci
         runner.Options.ClaudeCmd = cfg.ClaudeCmd;
         runner.Options.Model = cfg.Model;
         runner.Options.TimeoutSec = cfg.TimeoutSec;
+        runner.Options.Env = cfg.Env;
         runner.OnEvent += OnEvent;
         runner.OnStderr += OnStderr;
         runner.OnError += OnError;
@@ -100,6 +101,17 @@ namespace KompasMcp.Davinci
       if (r == null || !r.Running) { DavinciPanel.AppendLog("[давинчи] нечего прерывать"); return; }
       DavinciPanel.AppendLog("[давинчи] прерываю…");
       System.Threading.ThreadPool.QueueUserWorkItem(delegate { try { r.Stop(); } catch (Exception e) { Log.Error("abort", e); } });
+    }
+
+    // Останов копилота при выходе панельного процесса: гасим claude, если он жив.
+    public static void Shutdown()
+    {
+      ClaudeRunner r;
+      lock (Gate) { r = runner; }
+      if (r == null || !r.Running) return;
+      DavinciPanel.AppendLog("[давинчи] останавливаю выполняющийся запрос…");
+      try { r.Stop(); }
+      catch (Exception e) { Log.Error("session.Shutdown", e); }
     }
 
     static void OnEvent(StreamEvent ev)

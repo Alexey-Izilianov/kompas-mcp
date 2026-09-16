@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
+using Microsoft.Win32;
 
 namespace KompasMcp.Davinci
 {
@@ -19,6 +20,7 @@ namespace KompasMcp.Davinci
     public string Model;                     // --model ("" = по умолчанию)
     public bool Restricted = true;
     public int TimeoutSec;                   // 0 = без таймаута (стоп только вручную)
+    public System.Collections.Generic.Dictionary<string, string> Env;  // доп. окружение claude
   }
 
   public class ClaudeRunner
@@ -69,6 +71,10 @@ namespace KompasMcp.Davinci
       // кириллица доходит до модели битой (CP1251/CP866-микс) — поэтому
       // WriteStdin пишет UTF-8 байты напрямую в BaseStream.
       if (!string.IsNullOrEmpty(o.Workspace)) psi.WorkingDirectory = o.Workspace;
+      MergeUserEnvironment(psi);
+      if (o.Env != null)
+        foreach (System.Collections.Generic.KeyValuePair<string, string> kv in o.Env)
+          psi.EnvironmentVariables[kv.Key] = kv.Value;
 
       Log.Write("runner: spawn " + psi.Arguments);
       lock (gate) proc = Process.Start(psi);
@@ -77,6 +83,36 @@ namespace KompasMcp.Davinci
       new Thread(ReadStderr) { IsBackground = true }.Start();
       if (o.TimeoutSec > 0)
         watchdog = new Timer(delegate { Stop(); }, null, o.TimeoutSec * 1000, Timeout.Infinite);
+    }
+
+    // Панельный процесс наследует окружение КОМПАСа, где ANTHROPIC_*/актуальный
+    // PATH могут отсутствовать — claude тогда отвечает "Not logged in".
+    // Доливаем окружение пользователя из реестра (HKCU + HKLM), своё не затирая.
+    static void MergeUserEnvironment(ProcessStartInfo psi)
+    {
+      try
+      {
+        MergeRegKey(psi, Registry.CurrentUser, "Environment");
+        MergeRegKey(psi, Registry.LocalMachine, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
+      }
+      catch (Exception e) { Log.Error("runner env", e); }
+    }
+
+    static void MergeRegKey(ProcessStartInfo psi, RegistryKey hive, string path)
+    {
+      using (RegistryKey key = hive.OpenSubKey(path))
+      {
+        if (key == null) return;
+        foreach (string name in key.GetValueNames())
+        {
+          if (string.IsNullOrEmpty(name)) continue;
+          object v = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+          string value = v == null ? "" : Environment.ExpandEnvironmentVariables(Convert.ToString(v));
+          if (string.Equals(name, "PATH", StringComparison.OrdinalIgnoreCase))
+            value = psi.EnvironmentVariables["PATH"] + ";" + value;
+          psi.EnvironmentVariables[name] = value;
+        }
+      }
     }
 
     string BuildArgs(ClaudeRunnerOptions o, string resumeSessionId)

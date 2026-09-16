@@ -69,6 +69,19 @@ namespace KompasMcp
       {
         return ToolError(idObj, te.Message);
       }
+      catch (System.Runtime.InteropServices.COMException ce)
+      {
+        if (KompasHost.IsRpcDead(ce))
+        {
+          // КОМПАС закрыли/он упал во время вызова: сбрасываем ссылки и отдаём
+          // модели понятный текст вместо внутреннего -32603.
+          Log.Error("rpc: КОМПАС недоступен — отвязываюсь (мертвый COM-объект)", ce);
+          KompasHost.Detach();
+          return ToolError(idObj, "КОМПАС закрыт или недоступен (RPC не отвечает). " +
+            "Запустите КОМПАС и повторите — подключение восстановится автоматически.");
+        }
+        throw;
+      }
       catch (Exception e)
       {
         Log.Error("handle " + method, e);

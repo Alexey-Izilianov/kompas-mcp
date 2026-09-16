@@ -38,7 +38,7 @@ namespace KompasMcp.Davinci
   }
 
   // Современный путь: КОМПАС создаёт класс по ProgId/CLSID и вызывает
-  // IKompasLibrary. Команды: 1 = панель (Этап 4), 2 = диагностика.
+  // IKompasLibrary. Команды: 1 = копилот-панель, 2 = диагностика.
   [ComVisible(true)]
   [Guid("E7A45C31-9B2D-4F6A-8C3E-1D50A7B24E90")]
   [ProgId("KompasMcp.Davinci")]
@@ -129,9 +129,78 @@ namespace KompasMcp.Davinci
     public int RunLibraryCommand(int command, int demoMode)
     {
       DavinciLog.Write("RunLibraryCommand: " + command + ", demo=" + demoMode);
-      if (command == 1) Show(kompasApp, "Панель появится на Этапе 4 (сейчас эхо-режим не подключён)");
-      if (command == 2) Show(kompasApp, "Давинчи: библиотека жива, лог в %TEMP%\\kompas-davinci\\davinci.log");
+      if (command == 1) OpenPanel(kompasApp);
+      if (command == 2)
+      {
+        string exe = ResolveExe();
+        Show(kompasApp, "диагностика: ROT " + RotPrefix + Process.GetCurrentProcess().Id +
+          ", копилот " + (exe != null ? exe : "не найден (см. davinci.json)") +
+          ", лог %TEMP%\\kompas-davinci\\davinci.log");
+      }
       return 1;
+    }
+
+    // Меню «Панель»: запускает KompasMcp.exe --panel, привязанный к ЭТОМУ
+    // КОМПАСу (--rot-name = наш ROT-моникер). Если панель уже открыта —
+    // single-instance мьютекс внутри KompasMcp выведет её на передний план,
+    // а дублирующий процесс сам завершится.
+    public static void OpenPanel(object kompasForMessages)
+    {
+      string exe = ResolveExe();
+      if (exe == null)
+      {
+        Show(kompasForMessages, "не найден KompasMcp.exe — проверьте davinci.json рядом с библиотекой");
+        return;
+      }
+      string args = "--panel --attach --rot-name " + RotPrefix + Process.GetCurrentProcess().Id;
+      DavinciLog.Write("panel: start \"" + exe + "\" " + args);
+      try
+      {
+        // CreateNoWindow: KompasMcp.exe — консольное приложение, без этого
+        // рядом с панелью висит пустое консольное окно.
+        Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true });
+      }
+      catch (Exception e)
+      {
+        DavinciLog.Error("OpenPanel", e);
+        Show(kompasForMessages, "не удалось запустить панель: " + e.Message);
+      }
+    }
+
+    // Путь к KompasMcp.exe: davinci.json рядом с DLL (ключ kompasMcpExe),
+    // запасные варианты — KompasMcp.exe в родителе и в самой папке DLL.
+    // (AppDomain.BaseDirectory внутри КОМПАСа — это папка KOMPAS.Exe, не годится.)
+    static string ResolveExe()
+    {
+      try
+      {
+        string dllDir = Path.GetDirectoryName(
+          System.Reflection.Assembly.GetExecutingAssembly().Location);
+        string jsonPath = Path.Combine(dllDir, "davinci.json");
+        if (File.Exists(jsonPath))
+        {
+          string json = File.ReadAllText(jsonPath);
+          int k = json.IndexOf("kompasMcpExe", StringComparison.OrdinalIgnoreCase);
+          int colon = k >= 0 ? json.IndexOf(':', k) : -1;
+          if (colon >= 0)
+          {
+            int q1 = json.IndexOf('"', colon + 1);
+            int q2 = q1 >= 0 ? json.IndexOf('"', q1 + 1) : -1;
+            if (q1 >= 0 && q2 > q1)
+            {
+              string path = json.Substring(q1 + 1, q2 - q1 - 1).Replace("\\\\", "\\");
+              if (File.Exists(path)) return path;
+            }
+          }
+          DavinciLog.Write("ResolveExe: davinci.json есть, но путь не извлечён/файла нет: " + jsonPath);
+        }
+        string parent = Path.Combine(Path.GetDirectoryName(dllDir), "KompasMcp.exe");
+        if (File.Exists(parent)) return parent;
+        string near = Path.Combine(dllDir, "KompasMcp.exe");
+        if (File.Exists(near)) return near;
+      }
+      catch (Exception e) { DavinciLog.Error("ResolveExe", e); }
+      return null;
     }
 
     // ksMessage через лейт-биндинг (KompasObject API-5)
@@ -208,6 +277,7 @@ namespace KompasMcp.Davinci
     public void ExternalRunCommand(short command, short mode, object applicationInterface)
     {
       DavinciLog.Write("legacy ExternalRunCommand: " + command + ", mode=" + mode);
+      if (command == 1) { DavinciLibrary.OpenPanel(applicationInterface); return; }
       try
       {
         KompasObject k = applicationInterface as KompasObject;

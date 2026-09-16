@@ -129,7 +129,9 @@ namespace KompasMcp
       }
     }
 
-    // Если rotName задан — точное совпадение; иначе первый моникер KOMPAS_DAVINCHI_<PID>.
+    // Порядок: точный rotName → любой моникер KOMPAS_DAVINCHI_* (после
+    // перезапуска КОМПАСа pid у нового процесса другой) → активный
+    // KOMPAS.Application.5 (регистрация самого КОМПАСа в ROT).
     static void TryAttach()
     {
       try
@@ -144,34 +146,55 @@ namespace KompasMcp
         ComTypes.IRunningObjectTable rot;
         if (GetRunningObjectTable(0, out rot) != 0 || rot == null)
           throw new ToolException("GetRunningObjectTable failed");
-        ComTypes.IEnumMoniker enumMk;
-        rot.EnumRunning(out enumMk);
-        if (enumMk == null) throw new ToolException("ROT: EnumRunning вернул null");
-        enumMk.Reset();
-        ComTypes.IMoniker[] mks = new ComTypes.IMoniker[1];
-        IntPtr pFetched = Marshal.AllocHGlobal(4);
-        try
+        if (rotName != null)
         {
+          string wanted = rotName;
+          if (AttachByDisplayName(rot, name => string.Equals(name, wanted, StringComparison.OrdinalIgnoreCase)))
+            return;
+          Log.Write("attach: моникер " + rotName + " не найден (КОМПАС перезапускался?) — ищу любой KOMPAS_DAVINCHI_*");
+        }
+        if (AttachByDisplayName(rot, name => name.StartsWith(RotPrefix, StringComparison.OrdinalIgnoreCase)))
+          return;
+        // КОМПАС-3D v22 сам регистрирует себя в ROT под моникерами !{6B0B5194-...}
+        // (KOMPAS.Application.5) и !{8C3719B5-...} (KOMPAS.Application.7).
+        TryGetActiveKompas();
+        if (kompas == null)
+          Log.Write("attach: подходящий моникер в ROT не найден");
+      }
+      catch (Exception e)
+      {
+        Log.Error("attach", e);
+      }
+    }
+
+    // Перебирает ROT и подключается к первому моникеру, чьё имя прошло match
+    // (имя — часть display name после '!'). Возвращает true, если подключились.
+    static bool AttachByDisplayName(ComTypes.IRunningObjectTable rot, Predicate<string> match)
+    {
+      ComTypes.IEnumMoniker enumMk;
+      rot.EnumRunning(out enumMk);
+      if (enumMk == null) throw new ToolException("ROT: EnumRunning вернул null");
+      enumMk.Reset();
+      ComTypes.IMoniker[] mks = new ComTypes.IMoniker[1];
+      IntPtr pFetched = Marshal.AllocHGlobal(4);
+      try
+      {
         while (enumMk.Next(1, mks, pFetched) == 0 && Marshal.ReadInt32(pFetched) == 1)
         {
-          string display;
-          try { mks[0].GetDisplayName(attachBindCtx, null, out display); }
+          string name;
+          try { mks[0].GetDisplayName(attachBindCtx, null, out name); }
           catch { continue; }
-          if (display == null) continue;
-          string name = display;
+          if (name == null) continue;
           int bang = name.IndexOf('!');
           if (bang >= 0) name = name.Substring(bang + 1);
-          bool match = rotName != null
-            ? string.Equals(name, rotName, StringComparison.OrdinalIgnoreCase)
-            : name.StartsWith(RotPrefix, StringComparison.OrdinalIgnoreCase);
-          if (!match) continue;
+          if (!match(name)) continue;
           object obj;
           try { rot.GetObject(mks[0], out obj); }
-          catch (Exception e) { Log.Error("attach: GetObject(" + display + ")", e); continue; }
+          catch (Exception e) { Log.Error("attach: GetObject(" + name + ")", e); continue; }
           KompasObject k = obj as KompasObject;
           if (k == null)
           {
-            Log.Write("attach: объект в ROT (" + display + ") не KompasObject");
+            Log.Write("attach: объект в ROT (" + name + ") не KompasObject");
             continue;
           }
           kompas = k;
@@ -180,22 +203,11 @@ namespace KompasMcp
               int.TryParse(name.Substring(RotPrefix.Length), out tail))
             pid = tail;
           Log.Write("attach: подключён, rotName=" + name + ", pid=" + pid);
-          return;
+          return true;
         }
-        }
-        finally { Marshal.FreeHGlobal(pFetched); }
-        // Fallback (Этап 3, эксперимент): КОМПАС-3D v22 сам регистрирует себя в ROT
-        // под моникерами !{6B0B5194-...} (KOMPAS.Application.5) и !{8C3719B5-...}
-        // (KOMPAS.Application.7). GetActiveObject подключается к запущенному
-        // видимому КОМПАСу юзера без всякой библиотеки «Давинчи».
-        if (kompas == null && rotName == null) TryGetActiveKompas();
-        if (kompas == null)
-          Log.Write("attach: подходящий моникер в ROT не найден");
       }
-      catch (Exception e)
-      {
-        Log.Error("attach", e);
-      }
+      finally { Marshal.FreeHGlobal(pFetched); }
+      return false;
     }
 
     // Подключение к активному КОМПАСу через ROT-регистрацию самого КОМПАСа.
@@ -223,7 +235,20 @@ namespace KompasMcp
       }
     }
 
-    static void Detach()
+    // Умерший COM-объект КОМПАСа: процесс закрыт или упал (RPC недоступен).
+    // По такому исключению надо Detach — следующий вызов переподключится к
+    // живому КОМПАСу, а не будет долбиться в мёртвую ссылку.
+    public static bool IsRpcDead(Exception e)
+    {
+      System.Runtime.InteropServices.COMException ce =
+        e as System.Runtime.InteropServices.COMException;
+      if (ce == null) return false;
+      return ce.ErrorCode == unchecked((int)0x800706BA) // сервер RPC недоступен (процесс умер)
+        || ce.ErrorCode == unchecked((int)0x80010108)  // объект отключён от серверов RPC
+        || ce.ErrorCode == unchecked((int)0x800706BE); // сбой при удалённом вызове
+    }
+
+    public static void Detach()
     {
       Log.Write("attach: detach — COM-ссылки отпущены, КОМПАС юзера не трогаем");
       ReleaseRefs();
@@ -304,7 +329,23 @@ namespace KompasMcp
           docs.Add(info);
         }
       }
-      catch (Exception e) { Log.Error("list docs", e); }
+      catch (Exception e)
+      {
+        if (IsRpcDead(e))
+        {
+          // КОМПАС закрыли/он упал: сбрасываем мёртвые COM-ссылки — панель
+          // покажет «закрыт», а следующий вызов тулов переподключится сам.
+          Log.Error("status: КОМПАС недоступен — отвязываюсь (мертвый COM-объект)", e);
+          Detach();
+          st["running"] = false;
+          st["pid"] = 0;
+          st["visible"] = false;
+          st["note"] = "закрыт — подключение восстановится автоматически";
+          st["documents"] = docs;
+          return st;
+        }
+        Log.Error("list docs", e);
+      }
       st["documents"] = docs;
       return st;
     }

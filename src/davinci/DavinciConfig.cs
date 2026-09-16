@@ -14,6 +14,9 @@ namespace KompasMcp.Davinci
     public string Workspace;      // рабочий каталог claude (mcp-out)
     public int TimeoutSec = 900;
     public string ClaudeCmd = "claude.cmd";
+    // Дополнительное окружение для claude (ключи прокси/моделей). Нужен, потому
+    // что панельный процесс наследует окружение КОМПАСа, а не терминала юзера.
+    public Dictionary<string, string> Env = new Dictionary<string, string>();
 
     public static DavinciConfig Load()
     {
@@ -41,6 +44,13 @@ namespace KompasMcp.Davinci
         if (d.TryGetValue("workspace", out v)) cfg.Workspace = Convert.ToString(v);
         if (d.TryGetValue("timeoutSec", out v)) cfg.TimeoutSec = (int)AsDouble(v, 900);
         if (d.TryGetValue("claudeCmd", out v)) cfg.ClaudeCmd = Convert.ToString(v);
+        if (d.TryGetValue("env", out v))
+        {
+          var env = v as Dictionary<string, object>;
+          if (env != null)
+            foreach (KeyValuePair<string, object> kv in env)
+              cfg.Env[kv.Key] = Convert.ToString(kv.Value);
+        }
         Log.Write("config: davinci.json загружен (" + path + ")");
       }
       catch (Exception e)

@@ -23,3 +23,8 @@ tests/fix_encoding.ps1
 # аватар рядом с exe — артефакт сборки (копия из davinci/)
 /avatar.png
 /avatar.ico
+
+# промежуточные артефакты build-native.ps1 (регенерируются)
+davinci/DavinciNative.il
+davinci/DavinciNative_exports.il
+davinci/*.res
