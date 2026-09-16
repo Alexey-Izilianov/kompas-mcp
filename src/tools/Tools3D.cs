@@ -7,7 +7,7 @@ using Kompas6Constants3D;
 
 namespace KompasMcp.Tools
 {
-  // 3D-домен. Идиомы — из проверенных flange.cs/part3d.cs и SDK-сэмпла Step3d1 (memory: kompas3d-automation):
+  // 3D-домен. Идиомы — из проверенных flange.cs/part3d.cs и SDK-сэмпла Step3d1:
   //  - документ детали только через API-7 Documents.Add(ksDocumentPart, true) (true = невидимо, false → null);
   //  - doc3D = kompas.ActiveDocument3D(), part = doc3D.GetPart(pTop_Part=-1) (НЕ pNew_Part);
   //  - эскиз: o3d_sketch + SetPlane + Create + BeginEdit/EndEdit;

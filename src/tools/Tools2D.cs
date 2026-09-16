@@ -9,7 +9,7 @@ using KAPITypes;
 
 namespace KompasMcp.Tools
 {
-  // 2D-чертёжный домен. Идиомы — из проверенного flange_draw.cs (memory: kompas3d-automation):
+  // 2D-чертёжный домен. Идиомы — из проверенного flange_draw.cs:
   //  - lt_DocSheetStandart + ksSheetPar(shtType=1, layoutName="") + ksStandartSheet(direct=true = горизонтально);
   //    макет «Первый лист. Форма 1» с рамкой+штампом создаётся автоматически;
   //  - ksCreateSheetView(x=0,y=0) → координаты геометрии = мм листа;

@@ -1,7 +1,7 @@
 // Спавн claude -p (stream-json) и разбор потока. Сообщение — через stdin
 // (не argv: кириллица/кавычки). Стоп — taskkill /T /F (Process.Kill(true)
 // в .NET 4 нет; /T обязательно — иначе останется сирота kompas-mcp).
-// Форма флагов верифицирована Этапом 0 (memory: davinci-kompas-copilot).
+// Форма флагов верифицирована на Этапе 0.
 using System;
 using System.Diagnostics;
 using System.Text;
