@@ -780,7 +780,7 @@ namespace KompasMcp.Tools
 
     // Штриховка прямоугольной области отдельным блоком ksHatch (надёжно: тривиально замкнутый контур).
     // Без обводки (outline=false): обводку сечения рисует вызывающий.
-    static void HatchRect(double x0, double x1, double y0, double y1, bool mirror)
+    internal static void HatchRect(double x0, double x1, double y0, double y1, bool mirror)
     {
       double ya = mirror ? -y1 : y0, yb = mirror ? -y0 : y1;
       List<object> segs = new List<object>();

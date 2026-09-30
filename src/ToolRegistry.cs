@@ -33,6 +33,7 @@ namespace KompasMcp
       Tools.ToolsGear.Register();
       Tools.ToolsSpring.Register();
       Tools.ToolsSpc.Register();
+      Tools.ToolsBevelWorm.Register();
     }
 
     public static void Add(string name, string description, string schemaJson,

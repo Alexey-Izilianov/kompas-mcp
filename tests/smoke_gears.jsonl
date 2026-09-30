@@ -1,0 +1,6 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"bevel_gear_drawing","arguments":{"me":3,"z":40,"delta":45,"width":25,"bore":24,"path":"mcp-out\\bevel1.cdw","png":"mcp-out\\bevel1.png"}}}
+{"id":4,"method":"tools/call","params":{"name":"worm_drawing","arguments":{"m":5,"z1":2,"q":10,"z2":40,"path":"mcp-out\\worm1.cdw","png":"mcp-out\\worm1.png"}}}
+{"id":5,"method":"tools/call","params":{"name":"worm_wheel_drawing","arguments":{"m":5,"z1":2,"q":10,"z2":40,"bore":25,"path":"mcp-out\\wwheel1.cdw","png":"mcp-out\\wwheel1.png"}}}
+{"id":6,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
