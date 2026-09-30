@@ -1,0 +1,8 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"gear_pair","arguments":{"m":2,"z1":20,"z2":40,"bore1":16,"bore2":30,"path":"mcp-out\\gear_pair.a3d"}}}
+{"id":4,"method":"tools/call","params":{"name":"save_part","arguments":{}}}
+{"id":5,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\gear_pair.png","resolution":150}}}
+{"id":6,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\gear_pair_top.png","resolution":150,"view":"top"}}}
+{"id":7,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":8,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

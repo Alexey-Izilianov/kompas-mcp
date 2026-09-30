@@ -170,17 +170,16 @@ namespace KompasMcp.Tools
         a =>
         {
           if (doc7 == null) throw new ToolException("Нет открытой детали");
-          doc7.Close(DocumentCloseOptions.kdDoNotSaveChanges);
-          doc3D = null; doc7 = null; part = null; partPath = null;
-          lastSketch = null; sketches.Clear();
+          CloseCurrentDoc();
           return new Dictionary<string, object> { { "closed", true } };
         });
 
       ToolRegistry.Add("render_png_3d",
-        "Отрендерить текущую 3D-деталь в растровый файл (API-7 документный SaveAsToRasterFormat). path: .png/.bmp/.jpg по расширению.",
+        "Отрендерить текущую 3D-деталь/сборку в растровый файл (API-7 документный SaveAsToRasterFormat). path: .png/.bmp/.jpg по расширению, view: стандартный вид top/front/back/left/right/bottom (по умолчанию текущая аксонометрия).",
         @"{""type"":""object"",""properties"":{
 ""path"":{""type"":""string"",""description"":""По умолчанию <деталь>.png""},
-""resolution"":{""type"":""integer"",""description"":""DPI, по умолчанию 96""}}}",
+""resolution"":{""type"":""integer"",""description"":""DPI, по умолчанию 96""},
+""view"":{""type"":""string"",""description"":""Стандартный вид: top/front/back/left/right/bottom""}}}",
         a => Render3D(a));
 
       // ---- сборки (.a3d) ----
@@ -209,6 +208,15 @@ namespace KompasMcp.Tools
         "Список компонентов текущей сборки.",
         "{}",
         a => ComponentsList());
+
+      ToolRegistry.Add("assembly_place",
+        "Разместить компонент сборки: положение (x,y,z) и поворот вокруг глобальной оси Z (град). Компонент — по name (как в assembly_components) или index.",
+        @"{""type"":""object"",""properties"":{
+""name"":{""type"":""string"",""description"":""Имя компонента (без index)""},
+""index"":{""type"":""integer"",""description"":""Индекс компонента в сборке (с 0)""},
+""x"":{""type"":""number""},""y"":{""type"":""number""},""z"":{""type"":""number""},
+""angle"":{""type"":""number"",""description"":""Поворот вокруг Z, град. (по умолчанию 0)""}}}",
+        a => PlaceComponent(a));
     }
 
     // ---- состояние ----
@@ -217,7 +225,7 @@ namespace KompasMcp.Tools
 
     // ---- сборки ----
 
-    static object CreateAssembly(Dictionary<string, object> a)
+    internal static object CreateAssembly(Dictionary<string, object> a)
     {
       IApplication app7 = KompasHost.App7;
       object docObj = app7.Documents.Add(DocumentTypeEnum.ksDocumentAssembly, true);
@@ -236,21 +244,91 @@ namespace KompasMcp.Tools
       return new Dictionary<string, object> { { "assembly", part.name }, { "path", partPath } };
     }
 
-    static object AddComponent(Dictionary<string, object> a)
+    // Вставка компонента: возвращает сам компонент (ksPart) — нужен для placement.
+    // Паттерн КОМПАС: сначала placeholder pNew_Part, затем SetPartFromFile на него,
+    // после чего slot и есть вставленный компонент.
+    internal static ksPart AddComponentImpl(string path, bool external)
     {
-      string path = ToolRegistry.GetStr(a, "path");
-      if (path == null) throw new ToolException("Нет path (.m3d/.a3d компонента)");
       if (!System.IO.Path.IsPathRooted(path)) path = System.IO.Path.GetFullPath(path);
       if (!System.IO.File.Exists(path)) throw new ToolException("Файл компонента не найден: " + path);
-      bool external = ToolRegistry.GetBool(a, "external", false);
-      // Паттерн КОМПАС: сначала placeholder pNew_Part, затем SetPartFromFile на него
       ksPart slot = (ksPart)GetDoc3D().GetPart((int)Part_Type.pNew_Part);
       if (slot == null) throw new ToolException("GetPart(pNew_Part) вернул null (не сборка?)");
       bool ok = GetDoc3D().SetPartFromFile(path, slot, external);
       if (!ok) throw new ToolException("SetPartFromFile вернул false: " + path);
+      return slot;
+    }
+
+    static object AddComponent(Dictionary<string, object> a)
+    {
+      string path = ToolRegistry.GetStr(a, "path");
+      if (path == null) throw new ToolException("Нет path (.m3d/.a3d компонента)");
+      bool external = ToolRegistry.GetBool(a, "external", false);
+      AddComponentImpl(path, external);
       try { GetPart().RebuildModel(); } catch (Exception e) { Log.Error("assembly rebuild", e); }
       Dictionary<string, object> res = (Dictionary<string, object>)ComponentsList();
       res["added"] = path;
+      return res;
+    }
+
+    // ---- размещение компонентов сборки ----
+
+    static ksPart FindComponent(Dictionary<string, object> a)
+    {
+      ksPartCollection col = (ksPartCollection)GetDoc3D().PartCollection(true);
+      if (col == null) throw new ToolException("PartCollection вернул null");
+      object nameObj;
+      if (a.TryGetValue("name", out nameObj) && nameObj != null)
+      {
+        string name = ToolRegistry.GetStr(a, "name");
+        ksPart p = (ksPart)col.GetByName(name, false, true);
+        if (p == null) throw new ToolException("Компонент не найден по имени: " + name);
+        return p;
+      }
+      int index = ToolRegistry.GetInt(a, "index", -1);
+      if (index < 0 || index >= col.GetCount())
+        throw new ToolException("Нет поля name или index вне диапазона 0.." + (col.GetCount() - 1));
+      ksPart c = (ksPart)col.GetByIndex(index);
+      if (c == null) throw new ToolException("GetByIndex(" + index + ") вернул null");
+      return c;
+    }
+
+    internal static void PlacePart(ksPart c, double x, double y, double z, double angleDeg)
+    {
+      ksPlacement pl = (ksPlacement)c.GetPlacement();
+      if (pl == null) throw new ToolException("GetPlacement вернул null");
+      if (!pl.SetOrigin(x, y, z)) throw new ToolException("SetOrigin вернул false");
+      double ph = angleDeg * Math.PI / 180.0;
+      // локальные OX/OY компонента в глобальных координатах (OZ = OX x OY)
+      if (!pl.SetAxis(Math.Cos(ph), Math.Sin(ph), 0.0, 0)) throw new ToolException("SetAxis OX вернул false");
+      if (!pl.SetAxis(-Math.Sin(ph), Math.Cos(ph), 0.0, 1)) throw new ToolException("SetAxis OY вернул false");
+      if (!c.UpdatePlacement()) throw new ToolException("UpdatePlacement вернул false");
+    }
+
+    // Закрыть активный 3D-документ (деталь/сборку) и сбросить состояние.
+    internal static void CloseCurrentDoc()
+    {
+      if (doc7 != null)
+      {
+        try { doc7.Close(DocumentCloseOptions.kdDoNotSaveChanges); }
+        catch (Exception e) { Log.Error("close doc", e); }
+      }
+      doc7 = null; doc3D = null; part = null; partPath = null;
+      lastSketch = null; sketches.Clear();
+    }
+
+    static object PlaceComponent(Dictionary<string, object> a)
+    {
+      ksPart c = FindComponent(a);
+      PlacePart(c,
+        ToolRegistry.GetDbl(a, "x", 0),
+        ToolRegistry.GetDbl(a, "y", 0),
+        ToolRegistry.GetDbl(a, "z", 0),
+        ToolRegistry.GetDbl(a, "angle", 0));
+      try { GetPart().RebuildModel(); } catch (Exception e) { Log.Error("assembly rebuild", e); }
+      Dictionary<string, object> res = (Dictionary<string, object>)ComponentsList();
+      string nm = "?";
+      try { nm = c.name; } catch { }
+      res["placed"] = nm;
       return res;
     }
 
@@ -619,10 +697,39 @@ namespace KompasMcp.Tools
       }
 
       string p = ToolRegistry.GetStr(a, "path", null);
-      if (p == null)
+      // Грабля: КОМПАС резолвит относительные пути от СВОЕГО cwd —
+      // растр уезжает непонятно куда. Только абсолютные пути.
+      if (!System.IO.Path.IsPathRooted(p)) p = System.IO.Path.GetFullPath(p);
+
+      // необязательный стандартный вид: top/front/back/left/right/bottom —
+      // проекция на соответствующую плоскость модели (вид — экранная система
+      // координат: экранная X и экранная Y как векторы в координатах модели).
+      // По умолчанию рендерится текущая (аксонометрия).
+      string view = ToolRegistry.GetStr(a, "view", null);
+      if (view != null)
       {
-        string baseName = partPath ?? Paths.Out("part.m3d");
-        p = System.IO.Path.ChangeExtension(baseName, ".png");
+        double x1 = 0, y1 = 0, z1 = 0, x2 = 0, y2 = 0, z2 = 0;
+        switch (view.ToLower())
+        {
+          case "top": x1 = 1; y2 = 1; break;       // экран = (X, Y), взгляд вдоль -Z
+          case "bottom": x1 = 1; y2 = -1; break;
+          case "front": x1 = 1; z2 = 1; break;     // экран = (X, Z)
+          case "back": x1 = -1; z2 = 1; break;
+          case "left": y1 = 1; z2 = 1; break;      // экран = (Y, Z)
+          case "right": y1 = -1; z2 = 1; break;
+          default: throw new ToolException("Неизвестный вид: " + view + " (top/front/back/left/right/bottom)");
+        }
+        ksViewProjectionCollection vpCol = (ksViewProjectionCollection)d3.GetViewProjectionCollection();
+        object vpObj = vpCol != null ? vpCol.NewViewProjection() : null;
+        ksViewProjection vp = (ksViewProjection)vpObj;
+        if (vp == null) throw new ToolException("NewViewProjection вернул null");
+        ksPlacement vpPl = (ksPlacement)vp.GetPlacement();
+        if (vpPl == null) throw new ToolException("viewProjection.GetPlacement вернул null");
+        vpPl.SetOrigin(0, 0, 0);
+        vpPl.SetAxis(x1, y1, z1, 0);
+        vpPl.SetAxis(x2, y2, z2, 1);
+        if (!vp.SetCurrent()) throw new ToolException("viewProjection.SetCurrent вернул false");
+        try { GetPart().RebuildModel(); } catch (Exception e) { Log.Error("render view rebuild", e); }
       }
       object parObj = d3.RasterFormatParam();
       ksRasterFormatParam par = (ksRasterFormatParam)parObj;
