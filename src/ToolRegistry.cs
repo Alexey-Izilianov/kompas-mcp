@@ -21,6 +21,7 @@ namespace KompasMcp
   public static class ToolRegistry
   {
     static readonly List<ToolDef> tools = new List<ToolDef>();
+    static readonly Dictionary<string, ToolDef> toolIndex = new Dictionary<string, ToolDef>();
 
     static ToolRegistry()
     {
@@ -51,14 +52,16 @@ namespace KompasMcp
       {
         throw new Exception("Битая inputSchema у tool '" + name + "': " + e.Message + " | схема: " + schemaJson);
       }
-      tools.Add(new ToolDef { Name = name, Description = description, SchemaJson = canonical, Handler = handler });
+      var def = new ToolDef { Name = name, Description = description, SchemaJson = canonical, Handler = handler };
+      tools.Add(def);
+      if (!toolIndex.ContainsKey(name)) toolIndex[name] = def; // первое имя выигрывает, как и в линейном Find
     }
 
     public static ToolDef Find(string name)
     {
-      foreach (ToolDef t in tools)
-        if (t.Name == name) return t;
-      return null;
+      if (name == null) return null;
+      ToolDef t;
+      return toolIndex.TryGetValue(name, out t) ? t : null;
     }
 
     public static List<ToolDef> All { get { return tools; } }

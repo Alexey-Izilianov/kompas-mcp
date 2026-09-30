@@ -110,19 +110,27 @@ namespace KompasMcp
       return result;
     }
 
+    // Реестр тулов формируется в статическом конструкторе ToolRegistry и дальше не меняется,
+    // поэтому набор для tools/list строится один раз и переиспользуется.
+    static List<object> toolsList;
+
     static object ToolsList()
     {
-      var list = new List<object>();
-      foreach (ToolDef t in ToolRegistry.All)
+      if (toolsList == null)
       {
-        var d = new Dictionary<string, object>();
-        d["name"] = t.Name;
-        d["description"] = t.Description;
-        d["inputSchema"] = new RawJson(t.SchemaJson);
-        list.Add(d);
+        var list = new List<object>();
+        foreach (ToolDef t in ToolRegistry.All)
+        {
+          var d = new Dictionary<string, object>();
+          d["name"] = t.Name;
+          d["description"] = t.Description;
+          d["inputSchema"] = new RawJson(t.SchemaJson);
+          list.Add(d);
+        }
+        toolsList = list;
       }
       var result = new Dictionary<string, object>();
-      result["tools"] = list;
+      result["tools"] = toolsList;
       return result;
     }
 

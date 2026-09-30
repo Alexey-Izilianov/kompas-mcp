@@ -8,6 +8,7 @@ namespace KompasMcp
   public static class Log
   {
     static readonly object Gate = new object();
+    static readonly UTF8Encoding encoding = new UTF8Encoding(false); // один на все записи
     static string path;
 
     public static string Path
@@ -31,7 +32,7 @@ namespace KompasMcp
         {
           File.AppendAllText(Path,
             DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture) + " " + message + "\r\n",
-            new UTF8Encoding(false));
+            encoding);
         }
       }
       catch { }

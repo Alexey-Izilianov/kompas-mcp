@@ -7,7 +7,12 @@ namespace KompasMcp.Gost
   // Пополнять по мере надобности; значения сверены с машиностроительными справочниками.
   public static class Materials
   {
-    public class Mat { public string Name; public double Density; public string Note; }
+    public class Mat
+    {
+      public string Name; public double Density; public string Note;
+      public string NameLower;      // для Find, считается один раз в Add
+      public string FirstWordLower; // первое слово имени, для Find
+    }
 
     static readonly List<Mat> mats = new List<Mat>();
 
@@ -42,7 +47,9 @@ namespace KompasMcp.Gost
 
     static void Add(string name, double density, string note)
     {
-      mats.Add(new Mat { Name = name, Density = density, Note = note });
+      string lower = name.ToLowerInvariant();
+      mats.Add(new Mat { Name = name, Density = density, Note = note,
+        NameLower = lower, FirstWordLower = name.Split(' ')[0].ToLowerInvariant() });
     }
 
     public static List<object> List()
@@ -63,7 +70,7 @@ namespace KompasMcp.Gost
     {
       string q = name.Trim().ToLowerInvariant();
       foreach (Mat m in mats)
-        if (m.Name.ToLowerInvariant().StartsWith(q) || q.StartsWith(m.Name.Split(' ')[0].ToLowerInvariant()) && m.Name.ToLowerInvariant().Contains(q))
+        if (m.NameLower.StartsWith(q) || q.StartsWith(m.FirstWordLower) && m.NameLower.Contains(q))
           return m;
       return null;
     }

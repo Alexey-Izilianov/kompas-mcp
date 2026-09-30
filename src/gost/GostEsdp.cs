@@ -64,7 +64,8 @@ namespace KompasMcp.Gost
         default:
           {
             if (grade < 1 || grade > 13) throw new ArgumentException("Квалитет " + grade + " не поддерживается (1-18)");
-            double i = 0.45 * Math.Pow(GeomMean(StepIndex(d)), 1.0 / 3.0) + 0.001 * GeomMean(StepIndex(d));
+            double D = GeomMean(StepIndex(d));
+            double i = 0.45 * Math.Pow(D, 1.0 / 3.0) + 0.001 * D;
             double k;
             switch (grade)
             {
@@ -165,14 +166,16 @@ namespace KompasMcp.Gost
 
     public static Dictionary<string, object> Fit(string holeField, string shaftField, double d)
     {
-      int itH = ItValue(GradeOf(holeField), d);
-      int itS = ItValue(GradeOf(shaftField), d);
+      int hGrade = GradeOf(holeField);
+      int sGrade = GradeOf(shaftField);
+      int itH = ItValue(hGrade, d);
+      int itS = ItValue(sGrade, d);
 
-      lastGrade = GradeOf(holeField);
+      lastGrade = hGrade;
       int hes, hei;
       HoleDevs(LetterOf(holeField), d, itH, out hes, out hei);
 
-      lastGrade = GradeOf(shaftField);
+      lastGrade = sGrade;
       int ses, sei;
       ShaftDevs(LetterOf(shaftField).ToLowerInvariant(), d, itS, out ses, out sei);
 

@@ -101,8 +101,18 @@ namespace KompasMcp.JsonLib
 
     static string ParseStr(string s, ref int i)
     {
-      var sb = new StringBuilder();
       i++; // "
+      int start = i;
+      // быстрый путь: строка без эскейпов целиком, без посимвольной сборки
+      while (i < s.Length)
+      {
+        char c = s[i];
+        if (c == '"') { i++; return s.Substring(start, i - 1 - start); }
+        if (c != '\\') i++;
+        else break;
+      }
+      var sb = new StringBuilder();
+      if (i > start) sb.Append(s, start, i - start); // фрагмент до первого эскейпа
       while (i < s.Length)
       {
         char c = s[i++];
@@ -193,8 +203,23 @@ namespace KompasMcp.JsonLib
       WriteStr(o.ToString(), sb);
     }
 
+    // Спецсимволы, встречающиеся в реальных текстах ответов (остальные управляющие — по c < 0x20)
+    static readonly char[] jsonEscapes = { '"', '\\', '\n', '\r', '\t', '\b', '\f' };
+
     static void WriteStr(string s, StringBuilder sb)
     {
+      // быстрый путь: строка без спецсимволов добавляется целиком
+      if (s.IndexOfAny(jsonEscapes) < 0)
+      {
+        bool ctrl = false;
+        for (int j = 0; j < s.Length; j++)
+          if (s[j] < 0x20) { ctrl = true; break; }
+        if (!ctrl)
+        {
+          sb.Append('"').Append(s).Append('"');
+          return;
+        }
+      }
       sb.Append('"');
       foreach (char c in s)
       {
