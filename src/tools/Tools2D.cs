@@ -345,7 +345,7 @@ namespace KompasMcp.Tools
 
     // ---- создание чертежа ----
 
-    static object CreateDrawing(Dictionary<string, object> a)
+    public static object CreateDrawing(Dictionary<string, object> a)
     {
       string fmt = ToolRegistry.GetStr(a, "format", "A3");
       int format = FormatCode(fmt);
@@ -459,7 +459,7 @@ namespace KompasMcp.Tools
       return new Dictionary<string, object> { { "holes", n } };
     }
 
-    static object LinDim(Dictionary<string, object> a)
+    public static object LinDim(Dictionary<string, object> a)
     {
       ksDocument2D d = GetDoc();
       KompasObject kompas = KompasHost.Kompas;
@@ -490,7 +490,7 @@ namespace KompasMcp.Tools
       return Id("lin_dim", obj);
     }
 
-    static object DiamDim(Dictionary<string, object> a)
+    public static object DiamDim(Dictionary<string, object> a)
     {
       ksDocument2D d = GetDoc();
       KompasObject kompas = KompasHost.Kompas;
@@ -589,7 +589,7 @@ namespace KompasMcp.Tools
 
     // ---- штриховка ----
 
-    static object Hatch(Dictionary<string, object> a)
+    public static object Hatch(Dictionary<string, object> a)
     {
       ksDocument2D d = GetDoc();
       object cObj;
@@ -605,8 +605,10 @@ namespace KompasMcp.Tools
       bool outline = ToolRegistry.GetBool(a, "outline", true);
       if (outline) DrawContour(d, contour, 1);
 
-      // 2) блок штриховки: повтор контура внутри (style 2), затем ksEndObj
-      d.ksHatch(0, ang, step, x0, y0, 0);
+      // 2) блок штриховки: повтор контура внутри (style 2), затем ksEndObj.
+      //    Сигнатура ksHatch(style, angle, step, WIDTH, x0, y0): width — ширина
+      //    полосы вдоль границы (0 = сплошная заливка); x0/y0 — точка штриховки.
+      d.ksHatch(0, ang, step, 0, x0, y0);
       DrawContour(d, contour, 2);
       d.ksEndObj();
 
@@ -771,7 +773,7 @@ namespace KompasMcp.Tools
 
     // ---- чертёж зубчатого колеса (ГОСТ 2.402) ----
 
-    static string FmtNum(double v)
+    public static string FmtNum(double v)
     {
       return v.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',');
     }
@@ -848,7 +850,7 @@ namespace KompasMcp.Tools
     }
 
     // Создать листовой вид (становится активным): координаты геометрии — мм вида.
-    static int MakeView(double x, double y, double scale, string name)
+    public static int MakeView(double x, double y, double scale, string name)
     {
       ksDocument2D d = GetDoc();
       KompasObject kompas = KompasHost.Kompas;

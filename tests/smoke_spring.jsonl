@@ -1,7 +1,8 @@
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"spring_calc","arguments":{"wireDiameter":2,"coilDiameter":14,"n":10}}}
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
-{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"spring_create","arguments":{"wireDiameter":2,"coilDiameter":14,"n":10,"path":"mcp-out\\spring_d2_D14.m3d"}}}
-{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"render_png_3d","arguments":{}}}
-{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
-{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"spring_drawing","arguments":{"wireDiameter":4,"coilDiameter":40,"n":6,"path":"mcp-out\\spring2d.cdw"}}}
+{"id":4,"method":"tools/call","params":{"name":"fill_stamp","arguments":{"partNumber":"АБВГ.654321.045","name":"Пружина сжатия","material":"Сталь 60С2А ГОСТ 14963-78"}}}
+{"id":5,"method":"tools/call","params":{"name":"save_document","arguments":{}}}
+{"id":6,"method":"tools/call","params":{"name":"render_png","arguments":{}}}
+{"id":7,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":8,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
