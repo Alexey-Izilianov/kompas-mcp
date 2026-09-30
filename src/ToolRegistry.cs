@@ -32,6 +32,7 @@ namespace KompasMcp
       Tools.ToolsStd.Register();
       Tools.ToolsGear.Register();
       Tools.ToolsSpring.Register();
+      Tools.ToolsSpc.Register();
     }
 
     public static void Add(string name, string description, string schemaJson,

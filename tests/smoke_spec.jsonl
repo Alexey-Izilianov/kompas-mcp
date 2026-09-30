@@ -1,0 +1,4 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"spec_drawing","arguments":{"name":"Редуктор","path":"mcp-out\\spec1.cdw","png":"mcp-out\\spec1.png","items":[{"section":"detali","designation":"КМ.751121.001","name":"Втулка","qty":2},{"section":"standart","name":"Болт М12x60 ГОСТ 7805-70","qty":4},{"section":"material","name":"Сталь 45 ГОСТ 1050-88","qty":3},{"section":"docs","name":"Руководство по эксплуатации","qty":1}]}}}
+{"id":4,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
