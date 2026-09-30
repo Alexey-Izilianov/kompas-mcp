@@ -11,11 +11,12 @@ namespace KompasMcp.Tools
     public static void Register()
     {
       ToolRegistry.Add("std_part",
-        "Создать стандартное изделие в 3D по таблицам ГОСТ. kind: bolt (d, length), nut (d), washer (d), bearing (code). Модели упрощённые: без резьбы и фасок; подшипник - кольца (+ дорожка-тор при balls=true).",
+        "Создать стандартное изделие в 3D по таблицам ГОСТ. kind: bolt (d, length), nut (d), washer (d), bearing (code), stud — шпилька ГОСТ 22032 (d, length, b1 — ввинчиваемый конец, по умолчанию 1d), pin — штифт цилиндрический ГОСТ 3128 (d, length), cpin — штифт конический ГОСТ 24896 (d — малый диаметр, length; конусность 1:50). Модели упрощённые: без резьбы и фасок; подшипник — кольца (+ дорожка-тор при balls=true).",
         @"{""type"":""object"",""properties"":{
-""kind"":{""type"":""string"",""enum"":[""bolt"",""nut"",""washer"",""bearing""]},
-""d"":{""type"":""number"",""description"":""Номинал резьбы/крепежа М (для bolt/nut/washer)""},
-""length"":{""type"":""number"",""description"":""Длина болта L (для bolt)""},
+""kind"":{""type"":""string"",""enum"":[""bolt"",""nut"",""washer"",""bearing"",""stud"",""pin"",""cpin""]},
+""d"":{""type"":""number"",""description"":""Номинал резьбы/крепежа М (для bolt/nut/washer) или диаметр (для stud/pin/cpin)""},
+""length"":{""type"":""number"",""description"":""Длина (для bolt/stud/pin/cpin)""},
+""b1"":{""type"":""number"",""description"":""Шпилька: длина ввинчиваемого конца (по умолчанию 1d)""},
 ""code"":{""type"":""integer"",""description"":""Код подшипника (для bearing), напр. 208""},
 ""name"":{""type"":""string"",""description"":""Имя детали (по умолчанию из ГОСТ)""},
 ""path"":{""type"":""string"",""description"":""Путь сохранения .m3d""},
@@ -33,7 +34,7 @@ namespace KompasMcp.Tools
           double d = ToolRegistry.GetDbl(a, "d");
           double L = ToolRegistry.GetDbl(a, "length");
           Fasteners.HexBolt b = Fasteners.Bolt(d);
-          if (b == null) throw new ToolException("Нет номинала М" + d + " в таблице болтов (6..24)");
+          if (b == null) throw new ToolException("Нет номинала М" + d + " в таблице болтов (6..48)");
           if (L <= 0 || L > 300) throw new ToolException("Длина болта должна быть 0..300");
           if (L < b.K + 2) throw new ToolException("Длина болта должна быть больше высоты головки");
 
@@ -72,7 +73,7 @@ namespace KompasMcp.Tools
         {
           double d = ToolRegistry.GetDbl(a, "d");
           Fasteners.HexNut n = Fasteners.Nut(d);
-          if (n == null) throw new ToolException("Нет номинала М" + d + " в таблице гаек (6..24)");
+          if (n == null) throw new ToolException("Нет номинала М" + d + " в таблице гаек (6..48)");
 
           CreatePart(ToolRegistry.GetStr(a, "name", "Гайка М" + d), a);
           double[] xs, ys;
@@ -103,7 +104,7 @@ namespace KompasMcp.Tools
         {
           double d = ToolRegistry.GetDbl(a, "d");
           Fasteners.Washer w = Fasteners.WasherFor(d);
-          if (w == null) throw new ToolException("Нет номинала М" + d + " в таблице шайб (6..24)");
+          if (w == null) throw new ToolException("Нет номинала М" + d + " в таблице шайб (6..48)");
 
           CreatePart(ToolRegistry.GetStr(a, "name", "Шайба " + d), a);
           Dictionary<string, object> ring = new Dictionary<string, object>();
@@ -164,6 +165,73 @@ namespace KompasMcp.Tools
           SetSteel();
           return Save(ToolRegistry.GetStr(a, "path", null), br.D, br.DOuter, br.B, 0);
         }
+        case "stud":
+        {
+          // шпилька ГОСТ 22032-76: стержень d длиной L, ввинчиваемый конец b1=1d.
+          // Упрощение: без резьбы (номинальный диаметр)
+          double d = ToolRegistry.GetDbl(a, "d");
+          double L = ToolRegistry.GetDbl(a, "length");
+          if (d <= 0 || d > 60) throw new ToolException("Диаметр шпильки должен быть 0..60");
+          if (L <= 0 || L > 400) throw new ToolException("Длина шпильки должна быть 0..400");
+          double b1 = ToolRegistry.GetDbl(a, "b1", d); // ГОСТ 22032: ввинчиваемый конец 1d
+          if (b1 <= 0 || b1 >= L) throw new ToolException("b1 должен быть 0..L");
+
+          CreatePart(ToolRegistry.GetStr(a, "name", "Шпилька М" + d + "x" + L), a);
+          Tools3D.Sketch(CircleDict(d / 2.0));
+          Tools3D.Extrude(Depth(L, baseOp: true), cut: false);
+          SetSteel();
+          object saved = Save(ToolRegistry.GetStr(a, "path", null), d, d, L, L);
+          Dictionary<string, object> res = (Dictionary<string, object>)saved;
+          res["gost"] = "Шпилька ГОСТ 22032-76 (b1=" + b1 + ", без резьбы - упрощение)";
+          return res;
+        }
+        case "pin":
+        {
+          // штифт цилиндрический ГОСТ 3128-70: фаски не моделируем
+          double d = ToolRegistry.GetDbl(a, "d");
+          double L = ToolRegistry.GetDbl(a, "length");
+          if (d <= 0 || d > 25) throw new ToolException("Диаметр штифта должен быть 0..25");
+          if (L <= 0 || L > 200) throw new ToolException("Длина штифта должна быть 0..200");
+
+          CreatePart(ToolRegistry.GetStr(a, "name", "Штифт " + d + "x" + L), a);
+          Tools3D.Sketch(CircleDict(d / 2.0));
+          Tools3D.Extrude(Depth(L, baseOp: true), cut: false);
+          SetSteel();
+          object saved = Save(ToolRegistry.GetStr(a, "path", null), d, d, L, L);
+          Dictionary<string, object> res = (Dictionary<string, object>)saved;
+          res["gost"] = "Штифт цилиндрический ГОСТ 3128-70";
+          return res;
+        }
+        case "cpin":
+        {
+          // штифт конический ГОСТ 24896-80: малый диаметр d, конусность 1:50,
+          // большой диаметр d2 = d + L/50. Тело: цилиндр d2 длиной L + фаска
+          // ребра малого торца с катетами L и L/100 (по образующей и по торцу)
+          // — даёт коническую поверхность 1:50. Revolve здесь не работает:
+          // профиль, примыкающий к оси вращения, API-эскизом не берётся.
+          double d = ToolRegistry.GetDbl(a, "d");
+          double L = ToolRegistry.GetDbl(a, "length");
+          if (d <= 0 || d > 25) throw new ToolException("Диаметр штифта должен быть 0..25");
+          if (L <= 0 || L > 200) throw new ToolException("Длина штифта должна быть 0..200");
+          double d2 = d + L / 50.0; // конусность 1:50
+
+          CreatePart(ToolRegistry.GetStr(a, "name", "Штифт конический " + d + "x" + L), a);
+          Tools3D.Sketch(CircleDict(d2 / 2.0));
+          Tools3D.Extrude(Depth(L, baseOp: true), cut: false);
+          // ребро малого торца: окружность z=0 радиуса d2/2 — точка на ней
+          List<object> pts = new List<object>();
+          pts.Add(new List<object> { (object)(d2 / 2.0), (object)0.0, (object)0.0 });
+          Dictionary<string, object> ch = new Dictionary<string, object>();
+          ch["points"] = pts;
+          ch["length1"] = L;       // по образующей цилиндра (вверх)
+          ch["length2"] = L / 100.0; // по торцу (внутрь радиуса)
+          Tools3D.EdgeOp(ch, false);
+          SetSteel();
+          object saved = Save(ToolRegistry.GetStr(a, "path", null), d, d2, L, L);
+          Dictionary<string, object> res = (Dictionary<string, object>)saved;
+          res["gost"] = "Штифт конический ГОСТ 24896-80 (1:50, d2=" + d2 + ")";
+          return res;
+        }
         default:
           throw new ToolException("Неизвестный kind: " + kind);
       }
@@ -179,6 +247,14 @@ namespace KompasMcp.Tools
       c["yc"] = 0.0;
       c["r"] = r;
       return c;
+    }
+
+    static Dictionary<string, object> Line(double x1, double y1, double x2, double y2)
+    {
+      Dictionary<string, object> l = new Dictionary<string, object>();
+      l["type"] = "line";
+      l["x1"] = x1; l["y1"] = y1; l["x2"] = x2; l["y2"] = y2;
+      return l;
     }
 
     static Dictionary<string, object> CircleDict(double r)

@@ -2,11 +2,13 @@ using System;
 
 namespace KompasMcp.Gost
 {
-  // Таблицы стандартных изделий (первый набор).
-  // ГОСТ 7805 - болты с шестигранной головкой (нормальная точность, исполнение 1)
-  // ГОСТ 5915 - гайки шестигранные (нормальная точность)
+  // Таблицы стандартных изделий.
+  // ГОСТ 7805 - болты с шестигранной головкой (класс точности А, исполнение 1)
+  // ГОСТ 5915 - гайки шестигранные
   // ГОСТ 11371 - шайбы круглые
   // ГОСТ 8338 - подшипники шариковые радиальные однорядные
+  // Шпильки/штифты - формульные (без таблиц: geometry-only),
+  // размеры из аргументов: stud ГОСТ 22032 (b1=1d), pin ГОСТ 3128, cpin ГОСТ 24896 (конусность 1:50).
   public static class Fasteners
   {
     public class HexBolt
@@ -58,6 +60,12 @@ namespace KompasMcp.Gost
         case 16: return new HexBolt { D = 16, S = 24, E = 26.75, K = 10.0, B = 38 };
         case 20: return new HexBolt { D = 20, S = 30, E = 33.03, K = 12.5, B = 46 };
         case 24: return new HexBolt { D = 24, S = 36, E = 39.55, K = 15.0, B = 54 };
+        // ГОСТ 7805-70, таблицы 1-2: М27 (применять не рекомендуется), М30, М36, М42, М48
+        case 27: return new HexBolt { D = 27, S = 41, E = 45.6, K = 17.0, B = 60 };
+        case 30: return new HexBolt { D = 30, S = 46, E = 51.3, K = 18.7, B = 66 };
+        case 36: return new HexBolt { D = 36, S = 55, E = 61.3, K = 22.5, B = 78 };
+        case 42: return new HexBolt { D = 42, S = 65, E = 72.6, K = 26.0, B = 90 };
+        case 48: return new HexBolt { D = 48, S = 75, E = 83.9, K = 30.0, B = 102 };
         default: return null;
       }
     }
@@ -74,6 +82,12 @@ namespace KompasMcp.Gost
         case 16: return new HexNut { D = 16, S = 24, E = 26.75, M = 14.8 };
         case 20: return new HexNut { D = 20, S = 30, E = 33.03, M = 18.0 };
         case 24: return new HexNut { D = 24, S = 36, E = 39.55, M = 21.5 };
+        // ГОСТ 5915-70: М27-M48
+        case 27: return new HexNut { D = 27, S = 41, E = 45.2, M = 23.6 };
+        case 30: return new HexNut { D = 30, S = 46, E = 50.9, M = 25.6 };
+        case 36: return new HexNut { D = 36, S = 55, E = 60.8, M = 31.0 };
+        case 42: return new HexNut { D = 42, S = 65, E = 71.3, M = 34.0 };
+        case 48: return new HexNut { D = 48, S = 75, E = 82.6, M = 38.0 };
         default: return null;
       }
     }
@@ -90,6 +104,12 @@ namespace KompasMcp.Gost
         case 16: return new Washer { D = 16, D1 = 17.0, D2 = 30.0, S = 3.0 };
         case 20: return new Washer { D = 20, D1 = 21.0, D2 = 37.0, S = 3.0 };
         case 24: return new Washer { D = 24, D1 = 25.0, D2 = 44.0, S = 4.0 };
+        // ГОСТ 11371-78 (норм. ряд, исполнение 1, кл. С): М27-M48
+        case 27: return new Washer { D = 27, D1 = 30.0, D2 = 50.0, S = 4.0 };
+        case 30: return new Washer { D = 30, D1 = 33.0, D2 = 56.0, S = 4.0 };
+        case 36: return new Washer { D = 36, D1 = 39.0, D2 = 66.0, S = 5.0 };
+        case 42: return new Washer { D = 42, D1 = 45.0, D2 = 78.0, S = 7.0 };
+        case 48: return new Washer { D = 48, D1 = 52.0, D2 = 92.0, S = 8.0 };
         default: return null;
       }
     }

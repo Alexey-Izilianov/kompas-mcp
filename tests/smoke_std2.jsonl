@@ -1,0 +1,12 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"bolt","d":30,"length":80,"path":"mcp-out\\bolt30.m3d"}}}
+{"id":4,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\bolt30.png"}}}
+{"id":5,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"nut","d":36,"path":"mcp-out\\nut36.m3d"}}}
+{"id":6,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"washer","d":27,"path":"mcp-out\\washer27.m3d"}}}
+{"id":7,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"stud","d":16,"length":100,"path":"mcp-out\\stud16.m3d"}}}
+{"id":8,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"pin","d":4,"length":20,"path":"mcp-out\\pin4.m3d"}}}
+{"id":9,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"cpin","d":2,"length":10,"path":"mcp-out\\cpin2.m3d"}}}
+{"id":10,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\cpin2.png","view":"left"}}}
+{"id":11,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":12,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

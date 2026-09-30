@@ -745,7 +745,7 @@ namespace KompasMcp.Tools
       return new Dictionary<string, object> { { "png", p } };
     }
 
-    static object EdgeOp(Dictionary<string, object> a, bool fillet)
+    internal static object EdgeOp(Dictionary<string, object> a, bool fillet)
     {
       ksPart p = GetPart();
       object ptsObj;
