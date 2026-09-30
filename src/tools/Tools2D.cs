@@ -233,6 +233,7 @@ namespace KompasMcp.Tools
         {
           string p = ToolRegistry.GetStr(a, "path", null);
           if (p == null) p = docPath;
+          p = AbsPath(p);
           bool ok = GetDoc().ksSaveDocument(p);
           if (!ok) throw new ToolException("ksSaveDocument вернул false: " + p);
           docPath = p;
@@ -245,6 +246,49 @@ namespace KompasMcp.Tools
 ""path"":{""type"":""string"",""description"":""По умолчанию <чертёж>.png""},
 ""resolution"":{""type"":""integer"",""description"":""DPI, по умолчанию 96""}}}",
         a => RenderPng(a));
+
+      ToolRegistry.Add("cut_line",
+        "Линия разреза/сечения (ЕСКД 2.305): штрихи + стрелки + надпись у обоих концов. points — ломаная линии (начало, изломы, конец, >=2 точки). label — буква (у обоих штрихов). right=1 — стрелки справа по ходу линии (надписи снаружи, автоматически). Точные позиции надписей можно задать labelX1..labelY2.",
+        @"{""type"":""object"",""properties"":{
+""points"":{""type"":""array"",""items"":{""type"":""array"",""items"":{""type"":""number""}}},
+""label"":{""type"":""string"",""description"":""Буква разреза, по умолчанию А""},
+""right"":{""type"":""integer"",""description"":""0=стрелки слева, 1=справа (по умолчанию 1)""},
+""labelOffset"":{""type"":""number"",""description"":""Авто-смещение надписей от штрихов, мм (по умолчанию 8)""},
+""labelX1"":{""type"":""number""},""labelY1"":{""type"":""number""},
+""labelX2"":{""type"":""number""},""labelY2"":{""type"":""number""}},
+""required"":[""points""]}",
+        a => CutLine(a));
+
+      ToolRegistry.Add("dim_group",
+        "Группа линейных размеров по одной оси (все точки на горизонтальной или вертикальной прямой). mode='chain' — размеры между последовательными точками на одном уровне; mode='base' — размеры от первой точки, при cascade=true ступенчато (step, мм). offset — смещение размерной линии (chain горизонтальный: dy, вертикальный: dx).",
+        @"{""type"":""object"",""properties"":{
+""points"":{""type"":""array"",""items"":{""type"":""array"",""items"":{""type"":""number""}}},
+""mode"":{""type"":""string"",""enum"":[""chain"",""base""],
+""description"":""chain (по умолчанию) | base""},
+""offset"":{""type"":""number"",""description"":""По умолчанию -15""},
+""cascade"":{""type"":""boolean"",""description"":""Для base: ступенчатые размеры (по умолчанию false)""},
+""step"":{""type"":""number"",""description"":""Шаг каскада, по умолчанию 8""},
+""sign"":{""type"":""integer"",""description"":""1 = знак диаметра ⌀""},
+""prefix"":{""type"":""string""},
+""textPos"":{""type"":""number"",""description"":""Позиция текста, % (по умолчанию 50)""}},
+""required"":[""points""]}",
+        a => DimGroup(a));
+
+      ToolRegistry.Add("export_dxf",
+        "Экспортировать активный чертёж в DXF. path можно опустить — по пути чертежа с заменой расширения. Экспорт может быть запрещён Компас-Защита. Применимо к чертежу; для DXF-совместимости выноски/шероховатость упрощаются самим КОМПАСом.",
+        @"{""type"":""object"",""properties"":{""path"":{""type"":""string""}}}",
+        a =>
+        {
+          string p = ToolRegistry.GetStr(a, "path", null);
+          if (p == null)
+          {
+            string baseName = docPath ?? Paths.Out("drawing.cdw");
+            p = Path.ChangeExtension(baseName, ".dxf");
+          }
+          bool ok = GetDoc().ksSaveToDXF(AbsPath(p));
+          if (!ok) throw new ToolException("ksSaveToDXF вернул false (возможно, экспорт запрещён Компас-Защита): " + p);
+          return new Dictionary<string, object> { { "dxf", p } };
+        });
 
       ToolRegistry.Add("close_drawing",
         "Закрыть текущий чертёж (сохраняйте save_document заранее).",
@@ -269,6 +313,12 @@ namespace KompasMcp.Tools
 
     public static string DocPath { get { return docPath; } }
 
+    // КОМПАС резолвит относительные пути от своего cwd, сервер — от своего; единая точка правды — абсолютные пути.
+    static string AbsPath(string p)
+    {
+      return Path.GetFullPath(p);
+    }
+
     static Dictionary<string, object> Id(string type, int obj)
     {
       return new Dictionary<string, object> { { "type", type }, { "obj", obj } };
@@ -286,7 +336,8 @@ namespace KompasMcp.Tools
 
       ksDocumentParam docPar = (ksDocumentParam)kompas.GetParamStruct((short)StructType2DEnum.ko_DocumentParam);
       if (docPar == null) throw new ToolException("ko_DocumentParam == null");
-      docPath = ToolRegistry.GetStr(a, "path", Paths.Out("drawing.cdw"));
+      // КОМПАС резолвит относительный путь от своего cwd (у COM-сервера он свой) — пути всегда абсолютные
+      docPath = AbsPath(ToolRegistry.GetStr(a, "path", Paths.Out("drawing.cdw")));
       string dir = Path.GetDirectoryName(docPath);
       if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
       docPar.fileName = docPath;
@@ -340,27 +391,18 @@ namespace KompasMcp.Tools
       ksDocument2D d = GetDoc();
       int style = ToolRegistry.GetInt(a, "style", 1);
       bool closed = ToolRegistry.GetBool(a, "closed", false);
-      object ptsObj;
-      if (!a.TryGetValue("points", out ptsObj)) throw new ToolException("Нет points");
-      List<object> pts = ptsObj as List<object>;
-      if (pts == null || pts.Count < 2) throw new ToolException("points: минимум 2 точки");
+      List<double[]> pts = GetPoints(a, "points");
 
       int n = closed ? pts.Count : pts.Count - 1;
       int made = 0;
       for (int i = 0; i < n; i++)
       {
-        List<object> p1 = pts[i] as List<object>;
-        List<object> p2 = pts[(i + 1) % pts.Count] as List<object>;
-        d.ksLineSeg(Num(p1, 0), Num(p1, 1), Num(p2, 0), Num(p2, 1), style);
+        double[] p1 = pts[i];
+        double[] p2 = pts[(i + 1) % pts.Count];
+        d.ksLineSeg(p1[0], p1[1], p2[0], p2[1], style);
         made++;
       }
       return new Dictionary<string, object> { { "segments", made } };
-    }
-
-    static double Num(List<object> p, int idx)
-    {
-      if (p == null || p.Count <= idx) throw new ToolException("Точка должна быть парой [x,y]");
-      return ToDbl(p[idx]);
     }
 
     static double ToDbl(object o)
@@ -573,6 +615,139 @@ namespace KompasMcp.Tools
       }
     }
 
+    // ---- линия разреза/сечения ----
+
+    // POINT_ARR (automation) = 2, ko_CutLineParam = 65, ko_MathPointParam = 14.
+    static object CutLine(Dictionary<string, object> a)
+    {
+      ksDocument2D d = GetDoc();
+      KompasObject kompas = KompasHost.Kompas;
+
+      List<double[]> pts = GetPoints(a, "points");
+      if (pts.Count < 2) throw new ToolException("points: минимум 2 точки");
+      string label = ToolRegistry.GetStr(a, "label", "А");
+      int right = ToolRegistry.GetInt(a, "right", 1);
+      double off = ToolRegistry.GetDbl(a, "labelOffset", 8);
+
+      // авто-смещение надписей наружу от стрелок: right=1 -> по ходу линии стрелки справа,
+      // надписи слева (нормаль CCW координатной плоскости от направления участка)
+      double ux = pts[1][0] - pts[0][0], uy = pts[1][1] - pts[0][1];
+      double l1 = Math.Sqrt(ux * ux + uy * uy);
+      if (l1 < 1e-9) throw new ToolException("Нулевой первый участок линии разреза");
+      ux /= l1; uy /= l1;
+      double sign = right == 1 ? 1 : -1;
+      double px = -uy, py = ux;      // CCW-перп
+      if (sign < 0) { px = -px; py = -py; }
+
+      double[] last = pts[pts.Count - 1];
+      double[] prev = pts[pts.Count - 2];
+      double vx = last[0] - prev[0], vy = last[1] - prev[1];
+      double l2 = Math.Sqrt(vx * vx + vy * vy);
+      if (l2 < 1e-9) throw new ToolException("Нулевой последний участок линии разреза");
+      vx /= l2; vy /= l2;
+      double qx = -vy, qy = vx;
+      if (sign < 0) { qx = -qx; qy = -qy; }
+
+      ksCutLineParam cp = (ksCutLineParam)kompas.GetParamStruct((short)StructType2DEnum.ko_CutLineParam);
+      if (cp == null) throw new ToolException("ko_CutLineParam == null");
+      cp.Init();
+      cp.type = 0;                 // надпись строкой (str)
+      cp.right = (short)right;
+      cp.str = label;
+      cp.x1 = ToolRegistry.GetDbl(a, "labelX1", pts[0][0] + off * px);
+      cp.y1 = ToolRegistry.GetDbl(a, "labelY1", pts[0][1] + off * py);
+      cp.x2 = ToolRegistry.GetDbl(a, "labelX2", last[0] + off * qx);
+      cp.y2 = ToolRegistry.GetDbl(a, "labelY2", last[1] + off * qy);
+
+      ksDynamicArray arr = (ksDynamicArray)kompas.GetDynamicArray(2);
+      if (arr == null) throw new ToolException("GetDynamicArray(POINT_ARR) == null");
+      foreach (double[] p in pts)
+      {
+        ksMathPointParam mp = (ksMathPointParam)kompas.GetParamStruct((short)StructType2DEnum.ko_MathPointParam);
+        mp.Init();
+        mp.x = p[0];
+        mp.y = p[1];
+        arr.ksAddArrayItem(-1, mp);
+      }
+      if (!cp.SetpMathPoint(arr)) throw new ToolException("SetpMathPoint вернул false");
+
+      int obj = d.ksCutLine(cp);
+      if (obj == 0) throw new ToolException("ksCutLine вернул 0");
+      return Id("cut_line", obj);
+    }
+
+    // ---- группа размеров ----
+
+    static object DimGroup(Dictionary<string, object> a)
+    {
+      List<double[]> pts = GetPoints(a, "points");
+      if (pts.Count < 2) throw new ToolException("points: минимум 2 точки");
+      string mode = ToolRegistry.GetStr(a, "mode", "chain");
+      if (mode != "chain" && mode != "base") throw new ToolException("mode: chain | base");
+      double off = ToolRegistry.GetDbl(a, "offset", -15);
+      bool casc = ToolRegistry.GetBool(a, "cascade", false);
+      double step = ToolRegistry.GetDbl(a, "step", 8);
+
+      // одна ось: либо все y равны (горизонтальные размеры, ang=0, смещение по dy),
+      // либо все x равны (вертикальные, ang=90, смещение по dx)
+      bool vertical = ToolRegistry.GetBool(a, "vertical", false);
+      bool horizontal = ToolRegistry.GetBool(a, "horizontal", false);
+      if (!vertical && !horizontal)
+      {
+        double y0 = pts[0][1];
+        vertical = true;
+        foreach (double[] p in pts)
+          if (Math.Abs(p[0] - pts[0][0]) > 1e-6) vertical = false;
+        if (!vertical)
+        {
+          horizontal = true;
+          foreach (double[] p in pts)
+            if (Math.Abs(p[1] - y0) > 1e-6) { horizontal = false; break; }
+        }
+        if (!vertical && !horizontal)
+          throw new ToolException("Точки не лежат на одной горизонтальной или вертикальной оси; укажите vertical=true/false явно или выровняйте точки");
+      }
+      else if (vertical && horizontal)
+        throw new ToolException("vertical и horizontal взаимоисключающи");
+      double ang = ToolRegistry.GetDbl(a, "ang", vertical ? 90 : 0);
+
+      int m = pts.Count - 1;
+      for (int i = 0; i < m; i++)
+      {
+        double[] p1 = mode == "chain" ? pts[i] : pts[0];
+        double[] p2 = pts[i + 1];
+        double o = off;
+        if (mode == "base" && casc) o = off - i * step;
+        Dictionary<string, object> args = new Dictionary<string, object>();
+        args["x1"] = p1[0]; args["y1"] = p1[1];
+        args["x2"] = p2[0]; args["y2"] = p2[1];
+        if (horizontal) { args["dx"] = o; args["dy"] = 0.0; }
+        else { args["dx"] = 0.0; args["dy"] = o; }
+        if (a.ContainsKey("ang")) args["ang"] = ToolRegistry.GetDbl(a, "ang");
+        if (a.ContainsKey("prefix")) args["prefix"] = ToolRegistry.GetStr(a, "prefix");
+        if (ToolRegistry.GetBool(a, "sign", false)) args["sign"] = 1;
+        if (a.ContainsKey("textPos")) args["textPos"] = ToolRegistry.GetDbl(a, "textPos");
+        LinDim(args);
+      }
+      return new Dictionary<string, object> { { "dims", m }, { "mode", mode } };
+    }
+
+    static List<double[]> GetPoints(Dictionary<string, object> a, string key)
+    {
+      object ptsObj;
+      if (!a.TryGetValue(key, out ptsObj)) throw new ToolException("Нет " + key);
+      List<object> raw = ptsObj as List<object>;
+      if (raw == null || raw.Count < 2) throw new ToolException(key + ": минимум 2 точки [x,y]");
+      List<double[]> res = new List<double[]>();
+      foreach (object o in raw)
+      {
+        List<object> pair = o as List<object>;
+        if (pair == null || pair.Count != 2) throw new ToolException("Точка должна быть парой [x,y]");
+        res.Add(new double[] { ToDbl(pair[0]), ToDbl(pair[1]) });
+      }
+      return res;
+    }
+
     // ---- шероховатость ----
 
     static object Rough(Dictionary<string, object> a)
@@ -655,6 +830,7 @@ namespace KompasMcp.Tools
         string baseName = docPath ?? Paths.Out("drawing.cdw");
         p = Path.ChangeExtension(baseName, ".png");
       }
+      p = AbsPath(p);
       object rObj = d.RasterFormatParam();
       ksRasterFormatParam rPar = (ksRasterFormatParam)rObj;
       rPar.Init();

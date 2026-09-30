@@ -1,0 +1,16 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_drawing","arguments":{"format":"A3","landscape":true,"path":"mcp-out\\cut.cdw","name":"cut_line / dim_group / export_dxf"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":50,"style":1}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"circle","arguments":{"xc":120,"yc":180,"r":35,"style":3}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"circle_array","arguments":{"xc":120,"yc":180,"arrayRadius":35,"n":6,"r":4,"startAngle":90}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"hatch","arguments":{"x0":310,"y0":156,"angle":45,"step":2,"contour":[{"type":"line","x1":270,"y1":150,"x2":295,"y2":150},{"type":"line","x1":295,"y1":150,"x2":295,"y2":170},{"type":"line","x1":295,"y1":170,"x2":287.5,"y2":170},{"type":"line","x1":287.5,"y1":170,"x2":287.5,"y2":187},{"type":"line","x1":287.5,"y1":187,"x2":350,"y2":187},{"type":"line","x1":350,"y1":187,"x2":350,"y2":170},{"type":"line","x1":350,"y1":170,"x2":342.5,"y2":170},{"type":"line","x1":342.5,"y1":170,"x2":342.5,"y2":162},{"type":"line","x1":342.5,"y1":162,"x2":270,"y2":162}]}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"cut_line","arguments":{"points":[[60,120],[180,120]],"label":"А","right":1}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"diam_dim","arguments":{"xc":120,"yc":180,"r":50,"ang":-45}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"dim_group","arguments":{"points":[[270,162],[295,162],[342.5,162],[350,162]],"mode":"chain","offset":-15,"sign":1}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"dim_group","arguments":{"points":[[270,150],[270,162],[270,187]],"mode":"base","offset":-15,"cascade":true}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"export_dxf","arguments":{"path":"C:\\Projects\\kompas-test\\kompas-mcp\\mcp-out\\cut.dxf"}}}
+{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"save_document","arguments":{}}}
+{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"render_png","arguments":{}}}
+{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
