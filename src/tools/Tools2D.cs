@@ -6,6 +6,7 @@ using Kompas6API5;
 using KompasAPI7;
 using Kompas6Constants;
 using KAPITypes;
+using KompasMcp.Gost;
 
 namespace KompasMcp.Tools
 {
@@ -196,6 +197,7 @@ namespace KompasMcp.Tools
 ""contour"":{""type"":""array"",""items"":{""type"":""object""}},
 ""angle"":{""type"":""number"",""description"":""Угол штриховки, градусы (по умолчанию 45)""},
 ""step"":{""type"":""number"",""description"":""Шаг, мм (по умолчанию 2)""},
+""outline"":{""type"":""boolean"",""description"":""true = дополнительно обвести контур основной линией (по умолчанию true)""},
 ""x0"":{""type"":""number"",""description"":""Точка внутри контура""},
 ""y0"":{""type"":""number""}},
 ""required"":[""contour"",""x0"",""y0""]}",
@@ -289,6 +291,23 @@ namespace KompasMcp.Tools
           if (!ok) throw new ToolException("ksSaveToDXF вернул false (возможно, экспорт запрещён Компас-Защита): " + p);
           return new Dictionary<string, object> { { "dxf", p } };
         });
+
+      ToolRegistry.Add("gear_drawing",
+        "2D-чертёж цилиндрического прямозубого колеса по ГОСТ 2.402: осевой разрез (штриховка половин), торцевой вид (окружности da/d/df/ступицы/отверстия), таблица параметров. Геометрия ГОСТ 16532, x=0. web>0 — колесо с диском и прорезями, web=0 — сплошное (тогда hubD/hubL игнорируются).",
+        @"{""type"":""object"",""properties"":{
+""m"":{""type"":""number"",""description"":""Модуль""},
+""z"":{""type"":""integer"",""description"":""Число зубьев""},
+""width"":{""type"":""number"",""description"":""Ширина венца b, мм""},
+""bore"":{""type"":""number"",""description"":""Диаметр центрального отверстия d2, мм""},
+""hubD"":{""type"":""number"",""description"":""Наружный диаметр ступицы (по умолчанию 1.6*bore)""},
+""hubL"":{""type"":""number"",""description"":""Длина ступицы (по умолчанию width+10)""},
+""web"":{""type"":""number"",""description"":""Толщина диска c (по умолчанию 0.3*width; 0 = сплошное)""},
+""accuracy"":{""type"":""string"",""description"":""Степень точности (по умолчанию 8-В)""},
+""scale"":{""type"":""number"",""description"":""Масштаб видов (по умолчанию 1)""},
+""path"":{""type"":""string"",""description"":""Путь сохранения .cdw""},
+""cx"":{""type"":""number"",""description"":""X главного вида на листе (по умолчанию 130)""},
+""cy"":{""type"":""number"",""description"":""Y видов на листе (по умолчанию 160)""}}}",
+        a => GearDrawing(a));
 
       ToolRegistry.Add("close_drawing",
         "Закрыть текущий чертёж (сохраняйте save_document заранее).",
@@ -581,8 +600,10 @@ namespace KompasMcp.Tools
       double x0 = ToolRegistry.GetDbl(a, "x0");
       double y0 = ToolRegistry.GetDbl(a, "y0");
 
-      // 1) контур заранее обычными объектами (style 1) — линии внутри блока штриховки не рендерятся
-      DrawContour(d, contour, 1);
+      // 1) контур заранее обычными объектами (style 1) — линии внутри блока штриховки не рендерятся;
+      //    outline=false — заливка без обводки (обводку рисует вызывающий)
+      bool outline = ToolRegistry.GetBool(a, "outline", true);
+      if (outline) DrawContour(d, contour, 1);
 
       // 2) блок штриховки: повтор контура внутри (style 2), затем ksEndObj
       d.ksHatch(0, ang, step, x0, y0, 0);
@@ -745,6 +766,264 @@ namespace KompasMcp.Tools
         if (pair == null || pair.Count != 2) throw new ToolException("Точка должна быть парой [x,y]");
         res.Add(new double[] { ToDbl(pair[0]), ToDbl(pair[1]) });
       }
+      return res;
+    }
+
+    // ---- чертёж зубчатого колеса (ГОСТ 2.402) ----
+
+    static string FmtNum(double v)
+    {
+      return v.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',');
+    }
+
+    // Штриховка прямоугольной области отдельным блоком ksHatch (надёжно: тривиально замкнутый контур).
+    // Без обводки (outline=false): обводку сечения рисует вызывающий.
+    static void HatchRect(double x0, double x1, double y0, double y1, bool mirror)
+    {
+      double ya = mirror ? -y1 : y0, yb = mirror ? -y0 : y1;
+      List<object> segs = new List<object>();
+      double[] xs = new double[] { x0, x1, x1, x0 };
+      double[] ys = new double[] { ya, ya, yb, yb };
+      for (int i = 0; i < 4; i++)
+      {
+        Dictionary<string, object> s = new Dictionary<string, object>();
+        s["type"] = "line";
+        s["x1"] = xs[i]; s["y1"] = ys[i];
+        s["x2"] = xs[(i + 1) % 4]; s["y2"] = ys[(i + 1) % 4];
+        segs.Add(s);
+      }
+      Dictionary<string, object> a = new Dictionary<string, object>();
+      a["contour"] = segs;
+      a["angle"] = 45.0; a["step"] = 2.5;
+      a["x0"] = (x0 + x1) / 2.0; a["y0"] = (ya + yb) / 2.0;
+      a["outline"] = false;
+      Hatch(a);
+    }
+
+    // Внешний контур верхней половины сечения (y — радиус, x — вдоль оси; замкнутый цикл точек).
+    // Полости между диском и венцом открыты вбок — контур обходит их стены. mirror — нижняя половина.
+    static List<object> SectionContour(double xh0, double xh1, double xr0, double xr1,
+      double xw0, double xw1, double ybore, double yhub, double ydf, double yra, bool disc, bool mirror)
+    {
+      double[][] p = disc
+        ? new double[][]
+          {
+            new double[] { xh0, ybore }, new double[] { xh1, ybore },
+            new double[] { xh1, yhub },  new double[] { xw1, yhub },
+            new double[] { xw1, ydf },   new double[] { xr1, ydf },
+            new double[] { xr1, yra },   new double[] { xr0, yra },
+            new double[] { xr0, ydf },   new double[] { xw0, ydf },
+            new double[] { xw0, yhub },  new double[] { xh0, yhub }
+          }
+        : new double[][]
+          {
+            new double[] { xh0, ybore }, new double[] { xh1, ybore },
+            new double[] { xh1, yra },   new double[] { xh0, yra }
+          };
+      List<object> segs = new List<object>();
+      for (int i = 0; i < p.Length; i++)
+      {
+        double[] p1 = p[i];
+        double[] p2 = p[(i + 1) % p.Length];
+        Dictionary<string, object> s = new Dictionary<string, object>();
+        s["type"] = "line";
+        s["x1"] = p1[0]; s["y1"] = mirror ? -p1[1] : p1[1];
+        s["x2"] = p2[0]; s["y2"] = mirror ? -p2[1] : p2[1];
+        segs.Add(s);
+      }
+      return segs;
+    }
+
+    static void AddLoop(List<object> segs, double[][] p)
+    {
+      for (int i = 0; i < p.Length; i++)
+      {
+        double[] p1 = p[i];
+        double[] p2 = p[(i + 1) % p.Length];
+        Dictionary<string, object> s = new Dictionary<string, object>();
+        s["type"] = "line";
+        s["x1"] = p1[0]; s["y1"] = p1[1]; s["x2"] = p2[0]; s["y2"] = p2[1];
+        segs.Add(s);
+      }
+    }
+
+    // Создать листовой вид (становится активным): координаты геометрии — мм вида.
+    static int MakeView(double x, double y, double scale, string name)
+    {
+      ksDocument2D d = GetDoc();
+      KompasObject kompas = KompasHost.Kompas;
+      ksViewParam par = (ksViewParam)kompas.GetParamStruct((short)StructType2DEnum.ko_ViewParam);
+      par.Init();
+      par.x = x; par.y = y;
+      par.scale_ = scale;
+      par.angle = 0;
+      par.state = (short)ldefin2d.stACTIVE;
+      par.name = name;
+      int vnum = 0;
+      d.ksCreateSheetView(par, ref vnum);
+      viewNum = vnum;
+      return vnum;
+    }
+
+    static Dictionary<string, object> GearDrawing(Dictionary<string, object> a)
+    {
+      double m = ToolRegistry.GetDbl(a, "m");
+      int z = ToolRegistry.GetInt(a, "z");
+      double b = ToolRegistry.GetDbl(a, "width");
+      double d2 = ToolRegistry.GetDbl(a, "bore");
+      if (m <= 0 || z < 6) throw new ToolException("Нужны m > 0 и целые z >= 6");
+      if (b <= 0 || d2 <= 0) throw new ToolException("Нужны width > 0 и bore > 0");
+      double scale = ToolRegistry.GetDbl(a, "scale", 1);
+      if (scale <= 0) throw new ToolException("scale должен быть > 0");
+      double cx = ToolRegistry.GetDbl(a, "cx", 130);
+      double cy = ToolRegistry.GetDbl(a, "cy", 160);
+
+      Gost16532.Wheel w = Gost16532.WheelGeom(m, z);
+      if (d2 >= w.Df) throw new ToolException("bore=" + d2 + " >= диаметра впадин df=" + w.Df);
+
+      // диск: web=0 → сплошное колесо, иначе диск с прорезями
+      double webDef = 0.3 * b;
+      object webObj;
+      bool disc = !(a.TryGetValue("web", out webObj) && ToDbl(webObj) <= 0);
+      double web = ToolRegistry.GetDbl(a, "web", disc ? webDef : 0);
+      if (!disc) web = 0;
+
+      double hubD = 0, hubL = 0;
+      if (!disc) hubL = b; // сплошное: длину задаёт венец
+      if (disc)
+      {
+        hubD = ToolRegistry.GetDbl(a, "hubD", 1.6 * d2);
+        hubL = ToolRegistry.GetDbl(a, "hubL", b + 10);
+        if (hubD <= d2 || hubD >= w.Df)
+          throw new ToolException("Требуется d2 < hubD < df: bore=" + d2 + ", hubD=" + hubD + ", df=" + w.Df);
+        if (web >= Math.Min(b, hubL))
+          throw new ToolException("Толщина диска web=" + web + " должна быть меньше min(width, hubL)=" + Math.Min(b, hubL));
+      }
+
+      string accuracy = ToolRegistry.GetStr(a, "accuracy", "8-В");
+
+      // ---- лист ----
+      Dictionary<string, object> createArgs = new Dictionary<string, object>();
+      string path = ToolRegistry.GetStr(a, "path", null);
+      if (path != null) createArgs["path"] = path;
+      createArgs["name"] = "Колесо зубчатое m" + FmtNum(m) + " z" + z;
+      CreateDrawing(createArgs);
+
+      double ra = w.Da / 2.0;
+      double ydf = w.Df / 2.0;
+      double yhub = disc ? hubD / 2.0 : d2 / 2.0;
+      double ybore = d2 / 2.0;
+      double xh0 = -hubL / 2.0, xh1 = hubL / 2.0;
+      double xr0 = -b / 2.0, xr1 = b / 2.0;
+      double xw0 = -web / 2.0, xw1 = web / 2.0;
+
+      // ---- главный вид: осевой разрез ----
+      MakeView(cx, cy, scale, "Осевой разрез");
+
+      // обводка внешнего контура сечения (обе половины) основной линией
+      List<object> outline = SectionContour(xh0, xh1, xr0, xr1, xw0, xw1, ybore, yhub, ydf, ra, disc, false);
+      List<object> outlineDown = SectionContour(xh0, xh1, xr0, xr1, xw0, xw1, ybore, yhub, ydf, ra, disc, true);
+      DrawContour(GetDoc(), outline, 1);
+      DrawContour(GetDoc(), outlineDown, 1);
+
+      // заливка полосами с зазором 0.5мм от линий контура (иначе заливка перетекает
+      // через примыкающие углы): outline=false — без двойной обводки
+      if (disc)
+      {
+        HatchRect(xr0 + 0.5, xr1 - 0.5, ydf + 0.5, ra - 0.5, false);
+        HatchRect(xw0 + 0.5, xw1 - 0.5, yhub + 0.5, ydf - 0.5, false);
+        HatchRect(xh0 + 0.5, xh1 - 0.5, ybore, yhub - 0.5, false);
+        HatchRect(xr0 + 0.5, xr1 - 0.5, ydf + 0.5, ra - 0.5, true);
+        HatchRect(xw0 + 0.5, xw1 - 0.5, yhub + 0.5, ydf - 0.5, true);
+        HatchRect(xh0 + 0.5, xh1 - 0.5, ybore, yhub - 0.5, true);
+      }
+      else
+      {
+        HatchRect(xh0 + 0.5, xh1 - 0.5, ybore, ra - 0.5, false);
+        HatchRect(xh0 + 0.5, xh1 - 0.5, ybore, ra - 0.5, true);
+      }
+
+      // ось вращения (штрихпунктирная)
+      double ax = Math.Max(hubL, b) / 2.0 + 5;
+      GetDoc().ksLineSeg(-ax, 0, ax, 0, 3);
+
+      // размеры: ширина венца — над контуром
+      Dictionary<string, object> dimB = new Dictionary<string, object>();
+      dimB["x1"] = xr0; dimB["y1"] = ra; dimB["x2"] = xr1; dimB["y2"] = ra;
+      dimB["ang"] = 0.0; dimB["dx"] = 0.0; dimB["dy"] = 10.0;
+      LinDim(dimB);
+
+      if (disc)
+      {
+        // длина ступицы — под контуром
+        Dictionary<string, object> dimH = new Dictionary<string, object>();
+        dimH["x1"] = xh0; dimH["y1"] = -yhub; dimH["x2"] = xh1; dimH["y2"] = -yhub;
+        dimH["ang"] = 0.0; dimH["dx"] = 0.0; dimH["dy"] = -10.0;
+        LinDim(dimH);
+      }
+
+      // ---- торцевой вид ----
+      double cx2 = cx + scale * (hubL / 2.0 + ra) + 25.0;
+      MakeView(cx2, cy, scale, "Вид слева");
+
+      ksDocument2D d = GetDoc();
+      if (disc) d.ksCircle(0, 0, hubD / 2.0, 1);
+      d.ksCircle(0, 0, ra, 1);
+      d.ksCircle(0, 0, w.Df / 2.0, 2);   // окружность впадин — сплошная тонкая
+      d.ksCircle(0, 0, w.D / 2.0, 3);    // делительный — штрихпунктирная
+      d.ksCircle(0, 0, ybore, 1);
+      double arm2 = ra + 4;
+      d.ksLineSeg(-arm2, 0, arm2, 0, 3);
+      d.ksLineSeg(0, -arm2, 0, arm2, 3);
+
+      // выноски диаметров: da — вправо-вверх, d — вниз, df — вверх, bore — вправо-вверх
+      // (вбок влево нельзя — выноска пересечёт осевой разрез)
+      double[] angs = new double[] { 45.0, 270.0, 100.0, 60.0 };
+      double[] radii = new double[] { ra, w.D / 2.0, w.Df / 2.0, ybore };
+      for (int i = 0; i < 4; i++)
+      {
+        Dictionary<string, object> dim = new Dictionary<string, object>();
+        dim["xc"] = 0; dim["yc"] = 0; dim["r"] = radii[i];
+        dim["ang"] = angs[i];
+        dim["textPos"] = 60.0;
+        DiamDim(dim);
+      }
+
+      // ---- таблица параметров (ГОСТ 2.402, масштаб 1 — мм листа) ----
+      MakeView(258.0, 145.0, 1.0, "Таблица параметров");
+
+      List<string[]> rows = new List<string[]>();
+      rows.Add(new string[] { "Модуль", FmtNum(m) });
+      rows.Add(new string[] { "Число зубьев", z.ToString(CultureInfo.InvariantCulture) });
+      rows.Add(new string[] { "Угол наклона зубьев", "0°" });
+      rows.Add(new string[] { "Исходный контур", "ГОСТ 13755-2015" });
+      rows.Add(new string[] { "Коэффициент смещения", "0" });
+      rows.Add(new string[] { "Степень точности", accuracy });
+      if (w.Undercut) rows.Add(new string[] { "Примечание", "z<17: подрезание профиля" });
+
+      double col1 = 95, rowH = 10;
+      double tw = col1 + 60, th = rows.Count * rowH;
+      for (int i = 0; i <= rows.Count; i++)
+        d.ksLineSeg(0, i * rowH, tw, i * rowH, 1);
+      d.ksLineSeg(0, 0, 0, th, 1);
+      d.ksLineSeg(col1, 0, col1, th, 1);
+      d.ksLineSeg(tw, 0, tw, th, 1);
+      for (int i = 0; i < rows.Count; i++)
+      {
+        string[] row = rows[i];
+        double top = th - i * rowH;
+        d.ksText(2, top - rowH / 2.0 - 1.8, 0, 5, 1, 0, row[0]);
+        d.ksText(col1 + 2, top - rowH / 2.0 - 1.8, 0, 5, 1, 0, row[1]);
+      }
+
+      // предупреждение о наложении видов (не ошибка)
+      Dictionary<string, object> res = new Dictionary<string, object>();
+      res["path"] = docPath;
+      res["da"] = w.Da; res["df"] = w.Df; res["d"] = w.D;
+      if (w.Undercut) res["warning"] = "z<" + 17 + " без смещения: подрезание профиля (ГОСТ 16532)";
+      double rightEdge = cx2 + scale * ra;
+      if (rightEdge > 250.0) res["warning2"] = "торцевой вид близок к таблице параметров (right edge " + FmtNum(rightEdge) + " мм) — уменьшите scale";
+      if (cy + scale * ra > 292.0 || cy - scale * ra < 60.0) res["warning3"] = "виды выходят на рамку/штамп — поднимите cy или уменьшите scale";
       return res;
     }
 

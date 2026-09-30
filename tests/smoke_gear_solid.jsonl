@@ -1,0 +1,7 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"gear_drawing","arguments":{"m":3,"z":24,"width":16,"bore":16,"web":0,"path":"mcp-out\\gear_solid.cdw"}}}
+{"id":4,"method":"tools/call","params":{"name":"save_document","arguments":{}}}
+{"id":5,"method":"tools/call","params":{"name":"render_png","arguments":{}}}
+{"id":6,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":7,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
