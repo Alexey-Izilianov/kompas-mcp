@@ -132,7 +132,7 @@ namespace KompasMcp.Tools
       finishArgs["designation"] = designation != null ? designation + " СБ" : null;
       finishArgs.Remove("material");
       List<string> tech = DrawKit.TechItems(a, "Размеры для справок.");
-      double techTop = 60 + 10 + tech.Count * 12;
+      double techTop = DrawKit.TechTopAboveStamp(tech);
       DrawKit.Finish(finishArgs, res, asmName + " Сборочный чертёж", null, scale, tech, techTop);
 
       List<object> rows = new List<object>();

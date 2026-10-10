@@ -1,0 +1,19 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_part","arguments":{"name":"Крышка фланцевая","designation":"АБВГ.711111.010","path":"mcp-out\\pd_flange.m3d"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"circle","xc":0,"yc":0,"r":50}]}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"extrude_boss","arguments":{"depth":12,"base":true}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","offset":12,"elements":[{"type":"circle","xc":0,"yc":0,"r":22.5}]}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"extrude_boss","arguments":{"depth":13}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"circle","xc":0,"yc":0,"r":15},{"type":"circle","xc":35,"yc":0,"r":4},{"type":"circle","xc":-35,"yc":0,"r":4},{"type":"circle","xc":0,"yc":35,"r":4},{"type":"circle","xc":0,"yc":-35,"r":4}]}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"extrude_cut","arguments":{"mode":"through"}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"set_material","arguments":{"name":"Сталь 45 ГОСТ 1050-2013","density":7.82}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"save_part","arguments":{}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"part_drawing","arguments":{"section":"front","views":["front","top"],"png":"mcp-out\\pd_flange.png"}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"view_project","arguments":{"view":"front","points":[[0,-22.5,25],[0,22.5,25],[0,-15,0],[0,15,0]]}}}
+{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"lin_dim","arguments":{"x1":-22.5,"y1":25,"x2":22.5,"y2":25,"dx":0,"dy":18,"ang":0,"sign":1}}}
+{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"save_document","arguments":{}}}
+{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"image_view","arguments":{"path":"mcp-out\\pd_flange.png","region":[0,0,0.5,0.5]}}}
+{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"jsonrpc":"2.0","id":19,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

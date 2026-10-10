@@ -100,7 +100,14 @@ namespace KompasMcp
       var args = (prms.ContainsKey("arguments") ? prms["arguments"] : null) as Dictionary<string, object>
         ?? new Dictionary<string, object>();
       Log.Write("call " + name + " " + Json.Write(args));
-      string text = Json.Write(tool.Handler(args));
+      object result = tool.Handler(args);
+      var multi = result as Tools.ToolContent;
+      if (multi != null)
+      {
+        Log.Write("call " + name + " -> " + multi.Items.Count + " элемент(а) содержимого");
+        return new Dictionary<string, object> { { "content", multi.Items }, { "isError", false } };
+      }
+      string text = Json.Write(result);
       Log.Write("call " + name + " -> " + (text.Length > 500 ? text.Substring(0, 500) + "..." : text));
       return Content(text, false);
     }

@@ -63,13 +63,25 @@ namespace KompasMcp.Tools
       return FrameTop - th;
     }
 
+    const double TechH = 3.5, TechLineH = 6;
+    static int TechChars { get { return (int)((TableW - 4) / (0.8 * TechH)); } }
+
+    // Верх блока технических требований, стоящего вплотную над штампом (чертежи без таблицы).
+    public static double TechTopAboveStamp(IList<string> items)
+    {
+      int lines = 0;
+      for (int i = 0; i < items.Count; i++)
+        foreach (string line in Wrap((i + 1) + ". " + items[i], TechChars, ((i + 1) + ". ").Length)) lines++;
+      return StampTop + 3 + 8 + lines * TechLineH + 1;
+    }
+
     // Технические требования под таблицей: нумерация, перенос по ширине колонки.
     // Возвращает false, если текст не поместился до штампа.
     public static bool TechReq(IList<string> items, double top)
     {
       if (items == null || items.Count == 0) return true;
-      const double h = 3.5, lineH = 6;
-      int maxChars = (int)((TableW - 4) / (0.8 * h));
+      const double h = TechH, lineH = TechLineH;
+      int maxChars = TechChars;
       Tools2D.MakeView(TableX, top - 8, 1.0, "Технические требования");
       ksDocument2D d = Tools2D.GetDoc();
       double y = 0;

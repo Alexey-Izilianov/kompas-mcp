@@ -41,6 +41,7 @@ namespace KompasMcp
       In("Проверочные расчёты по ГОСТ", Tools.ToolsCheck.Register);
       In("Сборочный чертёж", Tools.ToolsAsmDrawing.Register);
       In("Чертёж по модели", Tools.ToolsPartDrawing.Register);
+      In("Изображения чертежей", Tools.ToolsImage.Register);
     }
 
     static void In(string name, Action register)

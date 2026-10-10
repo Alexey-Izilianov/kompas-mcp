@@ -39,7 +39,7 @@ namespace KompasMcp.Tools
         a => PartDrawing(a));
 
       ToolRegistry.Add("view_project",
-        "Координаты точек 3D-модели на виде чертежа, построенного part_drawing; вид становится текущим — следующие lin_dim, diam_dim, rad_dim, line, text рисуют в нём в этих координатах (мм модели, масштаб вида учтён). Для размеров по модели: взять точки рёбер/центров из построения детали, спроецировать, нанести размер.",
+        "Координаты точек 3D-модели на виде чертежа, построенного part_drawing; вид становится текущим — следующие lin_dim, diam_dim, rad_dim, line, text рисуют в нём в этих координатах (мм модели, масштаб вида учтён). Для размеров по модели: взять точки рёбер/центров из построения детали, спроецировать, нанести размер. Над разрезом стоит обозначение «А-А» — размеры над ним относить на 15 мм и больше (dy у lin_dim — мм листа).",
         @"{""type"":""object"",""properties"":{
 ""view"":{""type"":""string"",""enum"":[""front"",""top"",""left""],""description"":""Вид (разрез А-А называется по виду, который он заменил)""},
 ""points"":{""type"":""array"",""items"":{""type"":""array"",""items"":{""type"":""number""}},""description"":""Точки модели [x, y, z]""}},
@@ -153,7 +153,7 @@ namespace KompasMcp.Tools
       res["gabarit"] = new List<object> { x2 - x1, y2 - y1, z2 - z1 };
       List<string> tech = DrawKit.TechItems(a, "Неуказанные предельные отклонения размеров: H14, h14, ±IT14/2.");
       DrawKit.Finish(new Dictionary<string, object>(a) { { "designation", designation } }, res, name, material, scale,
-        tech, 60 + 10 + tech.Count * 12);
+        tech, DrawKit.TechTopAboveStamp(tech));
       return res;
     }
 
