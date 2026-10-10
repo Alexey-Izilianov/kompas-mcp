@@ -17,7 +17,7 @@ namespace KompasMcp.Tools
 ""d"":{""type"":""number"",""description"":""Номинал резьбы/крепежа М (для bolt/nut/washer) или диаметр (для stud/pin/cpin)""},
 ""length"":{""type"":""number"",""description"":""Длина (для bolt/stud/pin/cpin)""},
 ""b1"":{""type"":""number"",""description"":""Шпилька: длина ввинчиваемого конца (по умолчанию 1d)""},
-""code"":{""type"":""integer"",""description"":""Код подшипника (для bearing), напр. 208""},
+""code"":{""type"":""integer"",""description"":""Код шарикоподшипника ГОСТ 8338 (для bearing): 201-215, 305-314""},
 ""name"":{""type"":""string"",""description"":""Имя детали (по умолчанию из ГОСТ)""},
 ""path"":{""type"":""string"",""description"":""Путь сохранения .m3d""},
 ""balls"":{""type"":""boolean"",""description"":""Подшипник: добавить дорожку-тор (масса завышается)""}}}",
@@ -119,7 +119,7 @@ namespace KompasMcp.Tools
         {
           int code = ToolRegistry.GetInt(a, "code");
           Fasteners.BallBearing br = Fasteners.Bearing(code);
-          if (br == null) throw new ToolException("Нет кода " + code + " в таблице подшипников (201-210, 305-307)");
+          if (br == null) throw new ToolException("Нет кода " + code + " в таблице подшипников (201-215, 305-314)");
           bool balls = ToolRegistry.GetBool(a, "balls", false);
 
           CreatePart(ToolRegistry.GetStr(a, "name", "Подшипник " + code), a);
@@ -142,25 +142,10 @@ namespace KompasMcp.Tools
 
           if (balls)
           {
-            // дорожка-тор: круг в XOZ на радиусе середины зазора, вращение вокруг оси Z
+            // дорожка-тор: круг в XOZ (y эскиза = −z) на радиусе середины зазора, вращение вокруг Z
             double rm = (rOutIn + rInOut) / 2.0;
-            Dictionary<string, object> tor = new Dictionary<string, object>();
-            tor["plane"] = "XOZ";
-            List<object> els = new List<object>();
-            Dictionary<string, object> circ = new Dictionary<string, object>();
-            circ["type"] = "circle";
-            circ["xc"] = Math.Round(rm, 4);
-            circ["yc"] = Math.Round(br.B / 2.0, 4);
-            circ["r"] = br.BallDia / 2.0;
-            els.Add(circ);
-            Dictionary<string, object> axis = new Dictionary<string, object>();
-            axis["type"] = "line";
-            axis["x1"] = 0; axis["y1"] = 0; axis["x2"] = 0; axis["y2"] = br.B;
-            axis["style"] = 3;
-            els.Add(axis);
-            tor["elements"] = els;
-            Tools3D.Sketch(tor);
-            Tools3D.Revolve(AngleDict(360), cut: false);
+            Tools3D.RevolveCircle(Tools3D.PlaneByName(Tools3D.GetPart(), "XOZ"), rm, -br.B / 2.0, br.BallDia / 2.0,
+              new[] { 0.0, 0.0 }, new[] { 0.0, -br.B }, 360);
           }
           SetSteel();
           return Save(ToolRegistry.GetStr(a, "path", null), br.D, br.DOuter, br.B, 0);
@@ -249,14 +234,6 @@ namespace KompasMcp.Tools
       return c;
     }
 
-    static Dictionary<string, object> Line(double x1, double y1, double x2, double y2)
-    {
-      Dictionary<string, object> l = new Dictionary<string, object>();
-      l["type"] = "line";
-      l["x1"] = x1; l["y1"] = y1; l["x2"] = x2; l["y2"] = y2;
-      return l;
-    }
-
     static Dictionary<string, object> CircleDict(double r)
     {
       Dictionary<string, object> d = new Dictionary<string, object>();
@@ -278,13 +255,6 @@ namespace KompasMcp.Tools
     {
       Dictionary<string, object> d = new Dictionary<string, object>();
       d["mode"] = "through";
-      return d;
-    }
-
-    static Dictionary<string, object> AngleDict(double angle)
-    {
-      Dictionary<string, object> d = new Dictionary<string, object>();
-      d["angle"] = angle;
       return d;
     }
 
@@ -311,7 +281,7 @@ namespace KompasMcp.Tools
       if (path != null) s["path"] = path;
       Tools3D.SavePart(s);
       Dictionary<string, object> res = new Dictionary<string, object>();
-      res["saved"] = s.ContainsKey("path") ? s["path"] : Tools3D.PartPath;
+      res["saved"] = Tools3D.PartPath;
       res["mass_kg"] = Tools3D.CurrentMass();
       return res;
     }

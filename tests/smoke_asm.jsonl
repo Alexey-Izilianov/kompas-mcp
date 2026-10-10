@@ -1,0 +1,54 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"create_part","arguments":{"name":"Плита","path":"mcp-out\\uzel\\plita.m3d"}}}
+{"id":4,"method":"tools/call","params":{"name":"sketch","arguments":{"plane":"XOY","elements":[{"type":"line","x1":-60,"y1":-40,"x2":60,"y2":-40},{"type":"line","x1":60,"y1":-40,"x2":60,"y2":40},{"type":"line","x1":60,"y1":40,"x2":-60,"y2":40},{"type":"line","x1":-60,"y1":40,"x2":-60,"y2":-40}]}}}
+{"id":5,"method":"tools/call","params":{"name":"extrude_boss","arguments":{"depth":12,"base":true}}}
+{"id":6,"method":"tools/call","params":{"name":"hole","arguments":{"xc":40,"yc":25,"r":6.5}}}
+{"id":7,"method":"tools/call","params":{"name":"hole","arguments":{"xc":-40,"yc":25,"r":6.5}}}
+{"id":8,"method":"tools/call","params":{"name":"hole","arguments":{"xc":-40,"yc":-25,"r":6.5}}}
+{"id":9,"method":"tools/call","params":{"name":"hole","arguments":{"xc":40,"yc":-25,"r":6.5}}}
+{"id":10,"method":"tools/call","params":{"name":"set_material","arguments":{"name":"Сталь 45 ГОСТ 1050-2013","density":7850}}}
+{"id":11,"method":"tools/call","params":{"name":"save_part","arguments":{}}}
+{"id":12,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":13,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"bolt","d":12,"length":30,"name":"Болт М12x30 ГОСТ 7805-70","path":"mcp-out\\uzel\\bolt.m3d"}}}
+{"id":14,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":15,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"washer","d":12,"name":"Шайба 12 ГОСТ 11371-78","path":"mcp-out\\uzel\\washer.m3d"}}}
+{"id":16,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":17,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"nut","d":12,"name":"Гайка М12 ГОСТ 5915-70","path":"mcp-out\\uzel\\nut.m3d"}}}
+{"id":18,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":19,"method":"tools/call","params":{"name":"create_assembly","arguments":{"name":"Узел крепления","path":"mcp-out\\uzel\\uzel.a3d"}}}
+{"id":20,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\plita.m3d","external":true}}}
+{"id":21,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\bolt.m3d","external":true}}}
+{"id":22,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\bolt.m3d","external":true}}}
+{"id":23,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\bolt.m3d","external":true}}}
+{"id":24,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\bolt.m3d","external":true}}}
+{"id":25,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\washer.m3d","external":true}}}
+{"id":26,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\washer.m3d","external":true}}}
+{"id":27,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\washer.m3d","external":true}}}
+{"id":28,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\washer.m3d","external":true}}}
+{"id":29,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\nut.m3d","external":true}}}
+{"id":30,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\nut.m3d","external":true}}}
+{"id":31,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\nut.m3d","external":true}}}
+{"id":32,"method":"tools/call","params":{"name":"assembly_add_component","arguments":{"path":"mcp-out\\uzel\\nut.m3d","external":true}}}
+{"id":33,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":1,"x":40,"y":25,"z":12}}}
+{"id":34,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":2,"x":-40,"y":25,"z":12}}}
+{"id":35,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":3,"x":-40,"y":-25,"z":12}}}
+{"id":36,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":4,"x":40,"y":-25,"z":12}}}
+{"id":37,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":5,"x":40,"y":25,"z":-2.5}}}
+{"id":38,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":6,"x":-40,"y":25,"z":-2.5}}}
+{"id":39,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":7,"x":-40,"y":-25,"z":-2.5}}}
+{"id":40,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":8,"x":40,"y":-25,"z":-2.5}}}
+{"id":41,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":9,"x":40,"y":25,"z":-13.3}}}
+{"id":42,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":10,"x":-40,"y":25,"z":-13.3}}}
+{"id":43,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":11,"x":-40,"y":-25,"z":-13.3}}}
+{"id":44,"method":"tools/call","params":{"name":"assembly_place","arguments":{"index":12,"x":40,"y":-25,"z":-13.3}}}
+{"id":45,"method":"tools/call","params":{"name":"save_part","arguments":{}}}
+{"id":46,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\uzel\\uzel.png","resolution":100}}}
+{"id":47,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":48,"method":"tools/call","params":{"name":"assembly_drawing","arguments":{"assembly":"mcp-out\\uzel\\uzel.a3d","views":["front","top","left"],"designation":"АБВГ.301111.001","path":"mcp-out\\uzel\\uzel_sb.cdw","png":"mcp-out\\uzel\\uzel_sb.png"}}}
+{"id":49,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":50,"method":"tools/call","params":{"name":"worm_pair","arguments":{"m":5,"z1":2,"q":10,"z2":40,"bore":40,"path":"mcp-out\\g3d_worm_pair.a3d"}}}
+{"id":51,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":52,"method":"tools/call","params":{"name":"assembly_drawing","arguments":{"assembly":"mcp-out\\g3d_worm_pair.a3d","designation":"АБВГ.302111.001","png":"mcp-out\\worm_pair_sb.png"}}}
+{"id":53,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":54,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

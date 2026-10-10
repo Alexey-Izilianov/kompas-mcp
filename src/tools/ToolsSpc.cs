@@ -9,33 +9,44 @@ using KompasMcp;
 
 namespace KompasMcp.Tools
 {
-  // Спецификация ГОСТ 2.106-96, форма 1 — как 2D-таблица на листе А4 (книжный).
-  // Нативный lt_DocSpc обследован (ToolsSpc-проба): документ создаётся, но разделы
-  // не навешиваются headless (ksAddSpcDescription = 0 для всех стилей GRAPHIC.LYT),
-  // поэтому таблица рисуется примитивами — проверенный путь Tools2D.
-  // Сетка: ширина 185 мм (x 20..205 листа), колонки 10/10/5/65/45/10/40,
-  // строки 8 мм, шапка 40 мм, записи растут вверх от шапки (шапка внизу).
+  // Спецификация ГОСТ 2.106-96, форма 1 — 2D-таблица на листе А4 (книжный). Нативный
+  // lt_DocSpc headless не годится (разделы не навешиваются, ksAddSpcDescription = 0), поэтому
+  // таблица рисуется примитивами. Графы 6/6/8/70/63/10/22 мм (x 20..205 листа), заголовок 15 мм
+  // под графой 26 рамки (левый верхний угол, 14 мм), строки 8 мм вниз до штампа. Разделы — в порядке ГОСТ 2.106; заголовок
+  // раздела подчёркнут, над ним и под ним по свободной строке; у документации нет позиции.
   public static class ToolsSpc
   {
-    // Порядок разделов ГОСТ 2.106 (по которому группируются items)
-    static readonly string[] SecOrder = { "detali", "standart", "material", "docs" };
-    static readonly string[] SecTitle = { "Детали", "Стандартные изделия", "Материалы", "Документация" };
+    static readonly string[] SecOrder = { "docs", "sborka", "detali", "standart", "prochie", "material" };
+    static readonly string[] SecTitle =
+      { "Документация", "Сборочные единицы", "Детали", "Стандартные изделия", "Прочие изделия", "Материалы" };
+
+    const double Left = 20, Top = 278, Bottom = 60, HeaderH = 15, RowH = 8, TextH = 3.5;
+    static readonly double[] Cols = { 6, 6, 8, 70, 63, 10, 22 };
 
     public static void Register()
     {
       ToolRegistry.Add("spec_drawing",
-        "Спецификация ГОСТ 2.106 форма 1 (2D-таблица на А4 книжном .cdw). items: [{section:'detali'|'standart'|'material'|'docs', designation, name, qty, note}]. Поз. нумеруется внутри раздела; разделы выводятся в порядке ЕСДК (Детали → Стандартные → Материалы → Документация).",
+        "Спецификация ГОСТ 2.106 форма 1 (2D-таблица на А4 книжном .cdw). items: [{section:'docs'|'sborka'|'detali'|'standart'|'prochie'|'material', format, designation, name, qty, note}]. Разделы выводятся в порядке ГОСТ 2.106, позиции нумеруются сквозь разделы (кроме документации); до 25 строк на листе.",
         @"{""type"":""object"",""properties"":{
-""name"":{""type"":""string"",""description"":""Наименование в штамп""},
+""name"":{""type"":""string"",""description"":""Наименование изделия в штамп""},
+""designation"":{""type"":""string"",""description"":""Обозначение изделия в штамп""},
 ""path"":{""type"":""string""},
 ""png"":{""type"":""string""},
 ""items"":{""type"":""array"",""items"":{""type"":""object"",""properties"":{
-""section"":{""type"":""string"",""enum"":[""detali"",""standart"",""material"",""docs""]},
+""section"":{""type"":""string"",""enum"":[""docs"",""sborka"",""detali"",""standart"",""prochie"",""material""]},
+""format"":{""type"":""string"",""description"":""Формат документа, напр. A3""},
 ""designation"":{""type"":""string""},
 ""name"":{""type"":""string""},
 ""qty"":{""type"":""number""},
-""note"":{""type"":""string""}}}}}}",
+""note"":{""type"":""string""}}}}},
+""required"":[""items""]}",
         a => SpecDrawing(a));
+    }
+
+    class Row
+    {
+      public string Format = "", Pos = "", Designation = "", Name = "", Qty = "", Note = "";
+      public bool Title;
     }
 
     static object SpecDrawing(Dictionary<string, object> a)
@@ -44,155 +55,137 @@ namespace KompasMcp.Tools
       List<object> items = a.TryGetValue("items", out itemsObj) ? itemsObj as List<object> : null;
       if (items == null || items.Count == 0) throw new ToolException("Нет items");
 
-      // строки таблицы: разделы в порядке ЕСДК; поз. нумеруется сквозняком
-      List<string[]> rows = new List<string[]>();
-      int created = 0, pos = 0;
-      foreach (string sec in SecOrder)
+      List<Row> rows = new List<Row>();
+      int pos = 0, created = 0;
+      for (int si = 0; si < SecOrder.Length; si++)
       {
-        List<object> secItems = SectionOf(items, sec);
-        if (secItems.Count == 0) continue;
-        int idx = Array.IndexOf(SecOrder, sec);
-        rows.Add(new string[] { "", SecTitle[idx], "", "" });
-        foreach (object itObj in secItems)
+        List<Dictionary<string, object>> sec = SectionOf(items, SecOrder[si]);
+        if (sec.Count == 0) continue;
+        if (rows.Count > 0) rows.Add(new Row());
+        rows.Add(new Row { Name = SecTitle[si], Title = true });
+        rows.Add(new Row());
+        foreach (Dictionary<string, object> it in sec)
         {
-          Dictionary<string, object> it = itObj as Dictionary<string, object>;
-          if (it == null) throw new ToolException("item должен быть объектом");
-          pos++;
-          double q = ToolRegistry.GetDbl(it, "qty", 1);
-          rows.Add(new string[] {
-            pos.ToString(CultureInfo.InvariantCulture),
-            ToolRegistry.GetStr(it, "designation", ""),
-            ToolRegistry.GetStr(it, "name", ""),
-            q == 1 ? "1" : ToolRegistry.GetDbl(it, "qty", 1).ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ','),
-            ToolRegistry.GetStr(it, "note", "")
-          });
+          Row r = new Row
+          {
+            Format = ToolRegistry.GetStr(it, "format", ""),
+            Designation = ToolRegistry.GetStr(it, "designation", ""),
+            Name = ToolRegistry.GetStr(it, "name", ""),
+            Note = ToolRegistry.GetStr(it, "note", "")
+          };
+          double q = ToolRegistry.GetDbl(it, "qty", SecOrder[si] == "docs" ? 0 : 1);
+          if (q > 0) r.Qty = q.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',');
+          if (SecOrder[si] != "docs") r.Pos = (++pos).ToString(CultureInfo.InvariantCulture);
+          rows.Add(r);
           created++;
         }
       }
-      if (created == 0) throw new ToolException("Ни одного item по известным разделам (detali/standart/material/docs)");
+      if (created == 0) throw new ToolException("Ни одного item по известным разделам (docs/sborka/detali/standart/prochie/material)");
+      int capacity = (int)((Top - HeaderH - Bottom) / RowH);
+      if (rows.Count > capacity) throw new ToolException("Строк " + rows.Count + " > " + capacity + " (ёмкость первого листа) — сократите состав");
 
-      // ---- лист А4 книжный ----
-      Dictionary<string, object> createArgs = new Dictionary<string, object>();
-      string path = ToolRegistry.GetStr(a, "path", null);
-      if (path != null && path.Length > 0) createArgs["path"] = path;
       string name = ToolRegistry.GetStr(a, "name", "Спецификация");
-      createArgs["name"] = name;
-      createArgs["format"] = "A4";
-      createArgs["landscape"] = false;
-      object dr = Tools2D.CreateDrawing(createArgs);
-
-      // вид-якорь листа уже в (0,0); таблица — отдельный вид от левого нижнего угла сетки
-      // (x=20 лист = левый отступ рамки ГОСТ, y=63 — выше штампа А4)
-      Tools2D.MakeView(20.0, 63.0, 1.0, "Спецификация");
+      Dictionary<string, object> createArgs = new Dictionary<string, object>
+        { { "name", name }, { "format", "A4" }, { "landscape", false } };
+      string path = ToolRegistry.GetStr(a, "path", null);
+      if (!string.IsNullOrEmpty(path)) createArgs["path"] = path;
+      Tools2D.CreateDrawing(createArgs);
+      Tools2D.MakeView(Left, 0, 1.0, "Спецификация");
       ksDocument2D d = Tools2D.GetDoc();
 
-      const int headerH = 40, rowH = 8;
-      const int colFmt = 10, colZone = 10, colPos = 5, colDesig = 65, colName = 45, colQty = 10, colNote = 40;
-      // x-границы колонок
-      double x0 = 0, x1 = colFmt, x2 = x1 + colZone, x3 = x2 + colPos,
-        x4 = x3 + colDesig, x5 = x4 + colName, x6 = x5 + colQty, x7 = x6 + colNote; // = 185
+      double[] x = new double[Cols.Length + 1];
+      for (int i = 0; i < Cols.Length; i++) x[i + 1] = x[i] + Cols[i];
+      double yHead = Top - HeaderH;
+      // разлиновка: графы — основными линиями на всю высоту, строки — тонкими
+      foreach (double xi in x) d.ksLineSeg(xi, Bottom, xi, Top, 1);
+      d.ksLineSeg(0, yHead, x[x.Length - 1], yHead, 1);
+      for (double y = yHead - RowH; y > Bottom + 0.1; y -= RowH) d.ksLineSeg(0, y, x[x.Length - 1], y, 2);
 
-      if (rows.Count > 22)
-        throw new ToolException("Строк " + rows.Count + " > 22 (ёмкость А4 без штампа) — разбейте на листы");
+      // заголовок: узкие графы — вертикальным текстом (угол ksText — в градусах)
+      string[] head = { "Формат", "Зона", "Поз.", "Обозначение", "Наименование", "Кол.", "Примечание" };
+      for (int i = 0; i < head.Length; i++)
+      {
+        if (Cols[i] <= 10)
+          d.ksText((x[i] + x[i + 1]) / 2.0 + TextH / 2.0 - 0.5, yHead + 1.5, 90, TextH, 1, 0, head[i]);
+        else if (i == head.Length - 1)
+        {
+          Centered(d, x[i], Cols[i], yHead + 8.5, "Приме-");
+          Centered(d, x[i], Cols[i], yHead + 3.0, "чание");
+        }
+        else Centered(d, x[i], Cols[i], yHead + (HeaderH - TextH) / 2.0, head[i]);
+      }
 
-      // ---- шапка (внизу, 40 мм) ----
-      for (int i = 0; i <= 5; i++)
-        d.ksLineSeg(x0, i * 8, x7, i * 8, 1);
-      // колонки: сквозные вертикали шапки + данные
-      double[] vx = { x1, x2, x3, x4, x5, x6, x7 };
-      double top = headerH + rows.Count * rowH;
-      foreach (double x in vx)
-        d.ksLineSeg(x, 0, x, top, 1);
-      // внешняя рамка таблицы
-      d.ksLineSeg(x0, 0, x0, top, 1);
-      d.ksLineSeg(x7, headerH, x7, top, 1);
-
-      // вертикальные заголовки (Формат/Зона/Поз./Кол./Прим.)
-      // КОМПАС-эксперимент: ang у ksText — градусы (см. NOTES «Грабли»)
-      const double vertAng = 90.0;
-      d.ksText((x0 + x1) / 2.0 - 2.5, headerH / 2.0 - 2.5, vertAng, 5, 1, 0, "Формат");
-      d.ksText((x1 + x2) / 2.0 - 2.5, headerH / 2.0 - 2.5, vertAng, 5, 1, 0, "Зона");
-      d.ksText((x2 + x3) / 2.0 - 2.5, headerH / 2.0 - 2.5, vertAng, 5, 1, 0, "Поз.");
-      d.ksText((x5 + x6) / 2.0 - 2.5, headerH / 2.0 - 2.5, vertAng, 5, 1, 0, "Кол.");
-      d.ksText((x6 + x7) / 2.0 - 2.5, headerH / 2.0 - 2.5, vertAng, 5, 1, 0, "Прим.");
-      // горизонтальные заголовки
-      d.ksText(x3 + colDesig / 2.0 - 15.0, headerH / 2.0 - 1.8, 0, 5, 1, 0, "Обозначение");
-      d.ksText(x4 + colName / 2.0 - 17.0, headerH / 2.0 - 1.8, 0, 5, 1, 0, "Наименование");
-
-      // ---- строки (растут вверх от шапки), текст в последней трети строки ----
       for (int i = 0; i < rows.Count; i++)
       {
-        double yb = headerH + i * rowH;  // нижняя линия строки
-        double ty = yb + 2.0;
-        string[] r = rows[i];
-        if (r[0].Length == 0) // раздел-заголовок: текст по центру графы «Наименование»
-          CellText(d, x4, colName, ty, r[1], true);
-        else
+        Row r = rows[i];
+        double yb = yHead - (i + 1) * RowH + (RowH - TextH) / 2.0;
+        if (r.Title)
         {
-          d.ksText(x2 + 0.5, ty, 0, 5, 1, 0, r[0]);               // Поз.
-          CellText(d, x3, colDesig, ty, r[1], false);              // Обозначение
-          CellText(d, x4, colName, ty, r[2], false);               // Наименование
-          CellText(d, x5, colQty, ty, r[3], true);                 // Кол.
-          if (r[4].Length > 0) CellText(d, x6, colNote, ty, r[4], false); // Прим.
+          double w = Centered(d, x[4], Cols[4], yb, r.Name);
+          d.ksLineSeg(x[4] + (Cols[4] - w) / 2.0, yb - 1.0, x[4] + (Cols[4] + w) / 2.0, yb - 1.0, 2);
+          continue;
         }
+        Centered(d, x[0], Cols[0], yb, r.Format);
+        Centered(d, x[2], Cols[2], yb, r.Pos);
+        Cell(d, x[3], Cols[3], yb, r.Designation);
+        Cell(d, x[4], Cols[4], yb, r.Name);
+        Centered(d, x[5], Cols[5], yb, r.Qty);
+        Cell(d, x[6], Cols[6], yb, r.Note);
       }
 
       FillStamp(name, ToolRegistry.GetStr(a, "designation", null));
       d.ksSaveDocument(Tools2D.DocPath);
-
-      Dictionary<string, object> res = new Dictionary<string, object>();
-      res["saved"] = Tools2D.DocPath;
-      res["items"] = created;
-      res["rows"] = rows.Count;
-      Dictionary<string, object> drObj = dr as Dictionary<string, object>;
-      if (drObj != null && drObj.ContainsKey("viewNumber")) res["viewNumber"] = drObj["viewNumber"];
-      // PNG для визуальной проверки
-      string png = ToolRegistry.GetStr(a, "png", null);
-      if (png != null && png.Length > 0)
+      Dictionary<string, object> res = new Dictionary<string, object>
       {
-        RenderPng(d, png);
-        res["png"] = png;
-      }
+        { "saved", Tools2D.DocPath }, { "items", created }, { "rows", rows.Count }, { "capacity", capacity }
+      };
+      string png = ToolRegistry.GetStr(a, "png", null);
+      if (!string.IsNullOrEmpty(png))
+        res["png"] = ((Dictionary<string, object>)Tools2D.RenderPng(new Dictionary<string, object>
+          { { "path", png }, { "resolution", 150 } }))["png"];
       return res;
     }
 
-    // Текст в ячейке: ширина символа ГОСТ-курсива ≈ 0.8h; длинные строки вжимаются
-    // уменьшением кегля до 2.5. centered — по центру колонки, иначе с отступом 2 мм.
-    static void CellText(ksDocument2D d, double colLeft, double colW, double y, string text, bool centered)
+    // ширина символа шрифта ГОСТ ≈ 0.6h (замер по рендеру); длинные строки сужаются (ksuStr до 0.6),
+    // затем мельчают
+    const double CharW = 0.6;
+
+    static double Fit(string text, double width, out double h, out double narrow)
     {
-      if (text == null || text.Length == 0) return;
-      double h = 5.0;
-      if (text.Length * 0.8 * h > colW - 4)
-        h = Math.Max(2.5, (colW - 4) / (0.8 * text.Length));
-      double x;
-      if (centered) x = colLeft + (colW - text.Length * 0.8 * h) / 2.0;
-      else x = colLeft + 2.0;
-      d.ksText(x, y, 0, h, 1, 0, text);
+      h = TextH;
+      double need = text.Length * CharW * h;
+      narrow = Math.Max(0.6, Math.Min(1.0, width / need));
+      if (need * narrow > width) h = Math.Max(2.0, width / (text.Length * CharW * narrow));
+      return text.Length * CharW * h * narrow;
     }
 
-    static List<object> SectionOf(List<object> items, string sec)
+    static void Cell(ksDocument2D d, double left, double w, double y, string text)
     {
-      List<object> r = new List<object>();
+      if (string.IsNullOrEmpty(text)) return;
+      double h, narrow;
+      Fit(text, w - 3, out h, out narrow);
+      d.ksText(left + 1.5, y, 0, h, narrow, 0, text);
+    }
+
+    static double Centered(ksDocument2D d, double left, double w, double y, string text)
+    {
+      if (string.IsNullOrEmpty(text)) return 0;
+      double h, narrow;
+      double tw = Fit(text, w - 2, out h, out narrow);
+      d.ksText(left + (w - tw) / 2.0, y, 0, h, narrow, 0, text);
+      return tw;
+    }
+
+    static List<Dictionary<string, object>> SectionOf(List<object> items, string sec)
+    {
+      List<Dictionary<string, object>> r = new List<Dictionary<string, object>>();
       foreach (object o in items)
       {
         Dictionary<string, object> it = o as Dictionary<string, object>;
-        if (it == null) continue;
+        if (it == null) throw new ToolException("item должен быть объектом");
         if (ToolRegistry.GetStr(it, "section", "detali") == sec) r.Add(it);
       }
       return r;
-    }
-
-    // Растеризация текущего .cdw (идиома Tools2D.render_png)
-    static void RenderPng(ksDocument2D d, string png)
-    {
-      object rObj = d.RasterFormatParam();
-      ksRasterFormatParam rf = (ksRasterFormatParam)rObj;
-      if (rf == null) throw new ToolException("RasterFormatParam вернул null");
-      rf.format = 3; // PNG
-      if (!rf.Init()) throw new ToolException("raster.Init вернул false");
-      rf.extResolution = 300;
-      png = System.IO.Path.GetFullPath(png);
-      if (!d.SaveAsToRasterFormat(png, rObj)) throw new ToolException("SaveAsToRasterFormat вернул false");
     }
 
     // Штамп через API-7 (идиома Tools2D.FillStamp)

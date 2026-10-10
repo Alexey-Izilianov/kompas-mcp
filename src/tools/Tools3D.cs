@@ -44,8 +44,9 @@ namespace KompasMcp.Tools
       ToolRegistry.Add("create_part",
         "Создать новую деталь (3D). Становится активной для остальных 3D-tools.",
         @"{""type"":""object"",""properties"":{
-""name"":{""type"":""string"",""description"":""Имя детали (в дереве)""},
-""path"":{""type"":""string"",""description"":""Полный путь сохранения .m3d (по умолчанию kompas-test\\mcp-out\\part.m3d)""}}}",
+""name"":{""type"":""string"",""description"":""Наименование детали""},
+""designation"":{""type"":""string"",""description"":""Обозначение детали""},
+""path"":{""type"":""string"",""description"":""Путь сохранения .m3d (по умолчанию mcp-out\\part.m3d рядом с сервером)""}}}",
         a => CreatePart(a));
 
       ToolRegistry.Add("open_part",
@@ -187,8 +188,9 @@ namespace KompasMcp.Tools
       ToolRegistry.Add("create_assembly",
         "Создать новую сборку (3D, .a3d). Становится активным документом для assembly_* и остальных 3D-tools.",
         @"{""type"":""object"",""properties"":{
-""name"":{""type"":""string"",""description"":""Имя сборки (в дереве)""},
-""path"":{""type"":""string"",""description"":""Полный путь сохранения .a3d (по умолчанию kompas-test\\mcp-out\\assembly.a3d)""}}}",
+""name"":{""type"":""string"",""description"":""Наименование сборки""},
+""designation"":{""type"":""string"",""description"":""Обозначение сборки""},
+""path"":{""type"":""string"",""description"":""Путь сохранения .a3d (по умолчанию mcp-out\\assembly.a3d рядом с сервером)""}}}",
         a => CreateAssembly(a));
 
       ToolRegistry.Add("open_assembly",
@@ -234,8 +236,7 @@ namespace KompasMcp.Tools
       doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
       part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
       if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null для сборки");
-      string name = ToolRegistry.GetStr(a, "name", null);
-      if (name != null) part.name = name;
+      SetIdentity(a);
       partPath = ToolRegistry.GetStr(a, "path", Paths.Out("assembly.a3d"));
       lastSketch = null;
       sketches.Clear();
@@ -294,14 +295,31 @@ namespace KompasMcp.Tools
 
     internal static void PlacePart(ksPart c, double x, double y, double z, double angleDeg)
     {
+      double ph = angleDeg * Math.PI / 180.0;
+      PlacePartAxes(c, new[] { x, y, z },
+        new[] { Math.Cos(ph), Math.Sin(ph), 0.0 }, new[] { -Math.Sin(ph), Math.Cos(ph), 0.0 });
+    }
+
+    // ox/oy — локальные оси OX/OY компонента в глобальных координатах (OZ = OX x OY).
+    // Поочерёдный SetAxis годится только для поворота вокруг Z: при выводе OY из плоскости XY
+    // КОМПАС перестраивает систему по старой OZ, поэтому обе оси задаются разом (SetAxes)
+    // и сверяются чтением назад. GetAxis, вопреки справке, отдаёт точку «начало + орт».
+    internal static void PlacePartAxes(ksPart c, double[] origin, double[] ox, double[] oy)
+    {
       ksPlacement pl = (ksPlacement)c.GetPlacement();
       if (pl == null) throw new ToolException("GetPlacement вернул null");
-      if (!pl.SetOrigin(x, y, z)) throw new ToolException("SetOrigin вернул false");
-      double ph = angleDeg * Math.PI / 180.0;
-      // локальные OX/OY компонента в глобальных координатах (OZ = OX x OY)
-      if (!pl.SetAxis(Math.Cos(ph), Math.Sin(ph), 0.0, 0)) throw new ToolException("SetAxis OX вернул false");
-      if (!pl.SetAxis(-Math.Sin(ph), Math.Cos(ph), 0.0, 1)) throw new ToolException("SetAxis OY вернул false");
+      if (!pl.SetOrigin(origin[0], origin[1], origin[2])) throw new ToolException("SetOrigin вернул false");
+      if (!pl.SetAxes(ox[0], ox[1], ox[2], oy[0], oy[1], oy[2])) throw new ToolException("SetAxes вернул false");
+      if (!AxisIs(pl, 0, origin, ox) || !AxisIs(pl, 1, origin, oy))
+        throw new ToolException("SetAxes: оси компонента не совпали с заданными");
       if (!c.UpdatePlacement()) throw new ToolException("UpdatePlacement вернул false");
+    }
+
+    static bool AxisIs(ksPlacement pl, int type, double[] origin, double[] v)
+    {
+      double x, y, z;
+      pl.GetAxis(out x, out y, out z, type);
+      return Math.Abs(x - origin[0] - v[0]) + Math.Abs(y - origin[1] - v[1]) + Math.Abs(z - origin[2] - v[2]) < 1e-6;
     }
 
     // Закрыть активный 3D-документ (деталь/сборку) и сбросить состояние.
@@ -332,6 +350,35 @@ namespace KompasMcp.Tools
       return res;
     }
 
+    internal class ComponentInfo
+    {
+      public string Name, File, Marking;
+      public double[] Min, Max;   // габарит в координатах сборки
+    }
+
+    // Компоненты открытой сборки с файлами и габаритами; min/max — габарит всей сборки
+    internal static List<ComponentInfo> ComponentInfos(out double[] min, out double[] max)
+    {
+      ksPartCollection col = (ksPartCollection)GetDoc3D().PartCollection(true);
+      if (col == null) throw new ToolException("PartCollection вернул null");
+      double x1, y1, z1, x2, y2, z2;
+      GetPart().GetGabarit(false, false, out x1, out y1, out z1, out x2, out y2, out z2);
+      min = new[] { x1, y1, z1 };
+      max = new[] { x2, y2, z2 };
+      List<ComponentInfo> list = new List<ComponentInfo>();
+      for (int i = 0; i < col.GetCount(); i++)
+      {
+        ksPart p = (ksPart)col.GetByIndex(i);
+        p.GetGabarit(false, false, out x1, out y1, out z1, out x2, out y2, out z2);
+        ComponentInfo c = new ComponentInfo { Min = new[] { x1, y1, z1 }, Max = new[] { x2, y2, z2 } };
+        try { c.Name = p.name; } catch { c.Name = "?"; }
+        try { c.File = p.fileName; } catch { c.File = ""; }
+        try { c.Marking = p.marking; } catch { c.Marking = ""; }
+        list.Add(c);
+      }
+      return list;
+    }
+
     static object ComponentsList()
     {
       ksPartCollection col = (ksPartCollection)GetDoc3D().PartCollection(true);
@@ -349,13 +396,27 @@ namespace KompasMcp.Tools
       return new Dictionary<string, object> { { "count", n }, { "components", list } };
     }
 
+    // Наименование и обозначение пишутся в документ только после part.Update() —
+    // без него файл сохранялся с именем по умолчанию «Деталь».
+    static void SetIdentity(Dictionary<string, object> a)
+    {
+      string name = ToolRegistry.GetStr(a, "name", null), designation = ToolRegistry.GetStr(a, "designation", null);
+      if (name == null && designation == null) return;
+      if (name != null) part.name = name;
+      if (designation != null) part.marking = designation;
+      part.Update();
+    }
+
     internal static object SavePart(Dictionary<string, object> a)
     {
       string p = ToolRegistry.GetStr(a, "path", null);
       if (p == null) p = partPath;
       if (p == null) throw new ToolException("Нет пути: укажите path или создайте деталь через create_part");
       if (!System.IO.Path.IsPathRooted(p)) p = System.IO.Path.GetFullPath(p); // относительный SaveAs молча не сохраняет
+      // в несуществующую папку SaveAs тоже молча ничего не пишет
+      System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p));
       GetDoc7().SaveAs(p);
+      if (!System.IO.File.Exists(p)) throw new ToolException("КОМПАС не сохранил файл: " + p);
       partPath = p;
       return new Dictionary<string, object> { { "saved", p } };
     }
@@ -427,15 +488,14 @@ namespace KompasMcp.Tools
       doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
       part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
       if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null");
-      string name = ToolRegistry.GetStr(a, "name", null);
-      if (name != null) part.name = name;
+      SetIdentity(a);
       partPath = ToolRegistry.GetStr(a, "path", Paths.Out("part.m3d"));
       lastSketch = null;
       sketches.Clear();
-      return new Dictionary<string, object> { { "created", true }, { "name", name } };
+      return new Dictionary<string, object> { { "created", true }, { "name", part.name } };
     }
 
-    static object OpenPart(string path)
+    internal static object OpenPart(string path)
     {
       if (path == null || path.Length == 0) throw new ToolException("Нет path");
       if (!System.IO.Path.IsPathRooted(path)) path = System.IO.Path.GetFullPath(path);
@@ -528,6 +588,211 @@ namespace KompasMcp.Tools
       sketches[id] = sk;
       lastSketch = sk;
       return new Dictionary<string, object> { { "sketchId", id } };
+    }
+
+    // ---- программные построения для генераторов (зубчатые, крепёж) ----
+
+    internal static ksEntity OffsetPlane(string basePlane, double off)
+    {
+      ksPart p = GetPart();
+      ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_planeOffset);
+      ksPlaneOffsetDefinition pd = (ksPlaneOffsetDefinition)op.GetDefinition();
+      pd.SetPlane(PlaneByName(p, basePlane));
+      pd.direction = off >= 0;
+      pd.offset = Math.Abs(off);
+      if (!op.Create()) throw new ToolException("planeOffset.Create вернул 0");
+      return op;
+    }
+
+    // Эскиз из замкнутых ломаных; точки — в координатах эскиза.
+    // На XOZ глобальная Z = −y эскиза (проверено габаритом), x эскиза = глобальная X.
+    internal static ksEntity PolySketch(ksEntity plane, params IList<double[]>[] contours)
+    {
+      ksPart p = GetPart();
+      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
+      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
+      def.SetPlane(plane);
+      sk.Create();
+      ksDocument2D d = (ksDocument2D)def.BeginEdit();
+      try
+      {
+        foreach (IList<double[]> c in contours)
+          for (int i = 0; i < c.Count; i++)
+          {
+            double[] a = c[i], b = c[(i + 1) % c.Count];
+            d.ksLineSeg(a[0], a[1], b[0], b[1], 1);
+          }
+      }
+      finally { def.EndEdit(); }
+      lastSketch = sk;
+      return sk;
+    }
+
+    // Тело или вырез вращения вокруг глобальной Z; профиль — замкнутая ломаная (r ≥ 0, z).
+    // Эскиз на XOZ (y эскиза = −z) с осевой линией стиля 3 по оси вращения: без неё
+    // bossRotated/cutRotated.Create возвращает 0.
+    internal static object RevolveZ(IList<double[]> rz, bool cut)
+    {
+      ksPart p = GetPart();
+      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
+      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
+      def.SetPlane(PlaneByName(p, "XOZ"));
+      sk.Create();
+      ksDocument2D d = (ksDocument2D)def.BeginEdit();
+      double zMin = double.MaxValue, zMax = double.MinValue;
+      try
+      {
+        for (int i = 0; i < rz.Count; i++)
+        {
+          double[] a = rz[i], b = rz[(i + 1) % rz.Count];
+          d.ksLineSeg(a[0], -a[1], b[0], -b[1], 1);
+          zMin = Math.Min(zMin, a[1]);
+          zMax = Math.Max(zMax, a[1]);
+        }
+        d.ksLineSeg(0, -zMin + 1, 0, -zMax - 1, 3);
+      }
+      finally { def.EndEdit(); }
+      lastSketch = sk;
+      return Revolve(new Dictionary<string, object> { { "angle", 360.0 } }, cut);
+    }
+
+    // Тело вращения круга (xc, yc, r) эскиза на плоскости plane вокруг осевой линии эскиза
+    // from→to на angle градусов. Сторону поворота задаёт reverse (направление осевой линии
+    // на неё не влияет — проверено пробой).
+    internal static void RevolveCircle(ksEntity plane, double xc, double yc, double r,
+      double[] from, double[] to, double angle, bool reverse = false)
+    {
+      ksPart p = GetPart();
+      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
+      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
+      def.SetPlane(plane);
+      sk.Create();
+      ksDocument2D d = (ksDocument2D)def.BeginEdit();
+      try
+      {
+        d.ksCircle(xc, yc, r, 1);
+        d.ksLineSeg(from[0], from[1], to[0], to[1], 3);
+      }
+      finally { def.EndEdit(); }
+      lastSketch = sk;
+      double mass0 = p.GetMass();
+      ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_bossRotated);
+      ksBossRotatedDefinition rd = (ksBossRotatedDefinition)op.GetDefinition();
+      rd.directionType = (short)Direction_Type.dtNormal;
+      rd.SetSideParam(!reverse, angle);
+      rd.SetSketch(sk);
+      if (!op.Create()) throw new ToolException("bossRotated.Create вернул 0");
+      p.RebuildModel();
+      if (p.GetMass() < mass0 + 1e-9) throw new ToolException("вращение ничего не добавило");
+    }
+
+    // Масса тела, построенного кинематикой: КОМПАС отдаёт 0, пока файл не переоткрыт —
+    // тогда сохраняем, закрываем и открываем снова (документ остаётся активным).
+    internal static double ReliableMass()
+    {
+      double m = CurrentMass();
+      if (m > 0) return m;
+      string p = partPath;
+      SavePart(new Dictionary<string, object>());
+      CloseCurrentDoc();
+      OpenPart(p);
+      return CurrentMass();
+    }
+
+    // Цилиндрическая спираль от плоскости plane вдоль её нормали, ось — через начало координат,
+    // старт — точка (diam/2, 0). turnDir = true даёт правую винтовую линию (против часовой
+    // при взгляде с конца нормали), false — левую: проверено пробой, справка SDK неоднозначна.
+    internal static ksEntity Spiral(ksEntity plane, double diam, double step, double turns, bool rightHand)
+    {
+      ksEntity sp = (ksEntity)GetPart().NewEntity((short)Obj3dType.o3d_cylindricSpiral);
+      ksCylindricSpiralDefinition def = (ksCylindricSpiralDefinition)sp.GetDefinition();
+      def.SetPlane(plane);
+      def.SetLocation(0, 0);
+      def.buildMode = 0;   // по шагу и числу витков
+      def.buildDir = true;
+      def.turnDir = rightHand;
+      def.step = step;
+      def.turn = turns;
+      def.diam = diam;
+      if (!sp.Create()) throw new ToolException("cylindricSpiral.Create вернул 0");
+      return sp;
+    }
+
+    // Кинематическая операция: профиль сохраняет угол с траекторией (винтовая поверхность по спирали).
+    internal static ksEntity Evolution(ksEntity sketch, ksEntity path, bool cut)
+    {
+      ksPart p = GetPart();
+      double mass0 = p.GetMass();
+      ksEntity op;
+      if (cut)
+      {
+        op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cutEvolution);
+        ksCutEvolutionDefinition def = (ksCutEvolutionDefinition)op.GetDefinition();
+        def.cut = true;
+        def.sketchShiftType = 1;
+        def.SetSketch(sketch);
+        ((ksEntityCollection)def.PathPartArray()).Add(path);
+      }
+      else
+      {
+        op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_bossEvolution);
+        ksBossEvolutionDefinition def = (ksBossEvolutionDefinition)op.GetDefinition();
+        def.sketchShiftType = 1;
+        def.SetSketch(sketch);
+        ((ksEntityCollection)def.PathPartArray()).Add(path);
+      }
+      if (!op.Create()) throw new ToolException((cut ? "cutEvolution" : "bossEvolution") + ".Create вернул 0");
+      p.RebuildModel();
+      if (cut && p.GetMass() >= mass0 - 1e-9)
+        throw new ToolException("кинематический вырез ничего не удалил — профиль вне тела");
+      return op;
+    }
+
+    // Элемент по сечениям; эскизы — в порядке следования вдоль тела.
+    internal static ksEntity Loft(IList<ksEntity> sections, bool cut, bool baseOp)
+    {
+      ksPart p = GetPart();
+      double mass0 = p.GetMass();
+      ksEntity op;
+      ksEntityCollection sks;
+      if (cut)
+      {
+        op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cutLoft);
+        sks = (ksEntityCollection)((ksCutLoftDefinition)op.GetDefinition()).Sketchs();
+      }
+      else if (baseOp)
+      {
+        op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_baseLoft);
+        sks = (ksEntityCollection)((ksBaseLoftDefinition)op.GetDefinition()).Sketchs();
+      }
+      else
+      {
+        op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_bossLoft);
+        sks = (ksEntityCollection)((ksBossLoftDefinition)op.GetDefinition()).Sketchs();
+      }
+      foreach (ksEntity s in sections) sks.Add(s);
+      if (!op.Create()) throw new ToolException((cut ? "cutLoft" : "loft") + ".Create вернул 0");
+      p.RebuildModel();
+      double mass = p.GetMass();
+      if (cut ? mass >= mass0 - 1e-9 : mass <= mass0 + 1e-9)
+        throw new ToolException("операция по сечениям не изменила тело");
+      return op;
+    }
+
+    // Круговой массив операции вокруг глобальной оси Z: count экземпляров с равным шагом.
+    internal static void CircularCopyZ(ksEntity operation, int count)
+    {
+      if (count < 2) return;
+      ksPart p = GetPart();
+      ksEntity arr = (ksEntity)p.NewEntity((short)Obj3dType.o3d_circularCopy);
+      ksCircularCopyDefinition def = (ksCircularCopyDefinition)arr.GetDefinition();
+      if (!def.SetAxis(p.GetDefaultEntity((short)Obj3dType.o3d_axisOZ)))
+        throw new ToolException("circularCopy.SetAxis вернул false");
+      def.count1 = 1;
+      def.SetCopyParamAlongDir(count, 360.0 / count, false, false);
+      ((ksEntityCollection)def.GetOperationArray()).Add(operation);
+      if (!arr.Create()) throw new ToolException("circularCopy.Create вернул 0");
+      p.RebuildModel();
     }
 
     internal static object Extrude(Dictionary<string, object> a, bool cut)
@@ -684,8 +949,9 @@ namespace KompasMcp.Tools
     {
       ksDocument3D d3 = GetDoc3D();
       IKompasDocument3D d7 = GetDoc7();
-      d7.HideAllPlanes = true;
-      d7.HideAllSketches = true;
+      // вся вспомогательная геометрия: плоскости, эскизы, спирали-траектории, начало координат;
+      // HideInComponentsMode переключает действие флагов на вставки сборки — прячем и там, и там
+      HideAux(d7, true);
       DocumentFrames frames = d7.DocumentFrames;
       if (frames.Count > 0)
       {
@@ -697,6 +963,7 @@ namespace KompasMcp.Tools
       }
 
       string p = ToolRegistry.GetStr(a, "path", null);
+      if (p == null) p = System.IO.Path.ChangeExtension(partPath ?? Paths.Out("part.m3d"), ".png");
       // Грабля: КОМПАС резолвит относительные пути от СВОЕГО cwd —
       // растр уезжает непонятно куда. Только абсолютные пути.
       if (!System.IO.Path.IsPathRooted(p)) p = System.IO.Path.GetFullPath(p);
@@ -739,10 +1006,17 @@ namespace KompasMcp.Tools
       par.extResolution = ToolRegistry.GetInt(a, "resolution", 96);
       par.colorType = 0;
       bool ok = d3.SaveAsToRasterFormat(p, parObj);
-      d7.HideAllPlanes = false;
-      d7.HideAllSketches = false;
+      HideAux(d7, false);
       if (!ok) throw new ToolException("SaveAsToRasterFormat вернул false");
       return new Dictionary<string, object> { { "png", p } };
+    }
+
+    static void HideAux(IKompasDocument3D d7, bool hide)
+    {
+      d7.HideInComponentsMode = true;
+      d7.HideAllAuxiliaryGeom = hide;
+      d7.HideInComponentsMode = false;
+      d7.HideAllAuxiliaryGeom = hide;
     }
 
     internal static object EdgeOp(Dictionary<string, object> a, bool fillet)

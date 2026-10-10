@@ -38,16 +38,22 @@ namespace KompasMcp.Davinci
         "8. После каждой неудачи с плоскостями XOZ/YOZ переключайся на XOY со смещением (offset).";
     }
 
-    // Каталог вложений юзера: <workspace>\attach. Относительный workspace
-    // считается от папки exe (тот же путь получает claude как WorkingDirectory).
-    public static string AttachmentDir()
+    // Рабочий каталог claude: workspace из конфига (по умолчанию mcp-out), относительный —
+    // от папки exe. Вложения юзера — в <workspace>\attach.
+    static string WorkspaceDir()
     {
       DavinciConfig c = cfg;
       if (c == null) { c = DavinciConfig.Load(); cfg = c; }
       string ws = c.Workspace;
       if (string.IsNullOrEmpty(ws)) ws = "mcp-out";
       if (!Path.IsPathRooted(ws)) ws = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ws);
-      string dir = Path.Combine(ws, "attach");
+      Directory.CreateDirectory(ws);
+      return ws;
+    }
+
+    public static string AttachmentDir()
+    {
+      string dir = Path.Combine(WorkspaceDir(), "attach");
       Directory.CreateDirectory(dir);
       return dir;
     }
@@ -73,7 +79,7 @@ namespace KompasMcp.Davinci
         runner = new ClaudeRunner();
         runner.Options = new ClaudeRunnerOptions();
         runner.Options.McpConfigPath = mcpConfigPath;
-        runner.Options.Workspace = cfg.Workspace;
+        runner.Options.Workspace = WorkspaceDir();
         runner.Options.SystemPrompt = SystemPrompt();
         runner.Options.ClaudeCmd = cfg.ClaudeCmd;
         runner.Options.Model = cfg.Model;

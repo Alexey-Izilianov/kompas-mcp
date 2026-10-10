@@ -15,6 +15,7 @@ namespace KompasMcp
     public string Name;
     public string Description;
     public string SchemaJson;   // JSON-схема входных аргументов
+    public string Section;      // раздел справочника (docs/tools.md)
     public Func<Dictionary<string, object>, object> Handler;
   }
 
@@ -23,17 +24,28 @@ namespace KompasMcp
     static readonly List<ToolDef> tools = new List<ToolDef>();
     static readonly Dictionary<string, ToolDef> toolIndex = new Dictionary<string, ToolDef>();
 
+    static string section;
+
     static ToolRegistry()
     {
-      Tools.InfraTools.Register();
-      Tools.Tools2D.Register();
-      Tools.Tools3D.Register();
-      Tools.ToolsCalc.Register();
-      Tools.ToolsStd.Register();
-      Tools.ToolsGear.Register();
-      Tools.ToolsSpring.Register();
-      Tools.ToolsSpc.Register();
-      Tools.ToolsBevelWorm.Register();
+      In("Инфраструктура", Tools.InfraTools.Register);
+      In("2D-чертежи", Tools.Tools2D.Register);
+      In("3D-детали и сборки", Tools.Tools3D.Register);
+      In("Расчёты и справочники", Tools.ToolsCalc.Register);
+      In("Стандартные изделия", Tools.ToolsStd.Register);
+      In("Цилиндрические зубчатые передачи", Tools.ToolsGear.Register);
+      In("Пружины", Tools.ToolsSpring.Register);
+      In("Спецификация", Tools.ToolsSpc.Register);
+      In("Чертежи конических и червячных передач", Tools.ToolsBevelWorm.Register);
+      In("3D-модели конических и червячных передач", Tools.ToolsGear3D.Register);
+      In("Проверочные расчёты по ГОСТ", Tools.ToolsCheck.Register);
+      In("Сборочный чертёж", Tools.ToolsAsmDrawing.Register);
+    }
+
+    static void In(string name, Action register)
+    {
+      section = name;
+      register();
     }
 
     public static void Add(string name, string description, string schemaJson,
@@ -54,7 +66,7 @@ namespace KompasMcp
       {
         throw new Exception("Битая inputSchema у tool '" + name + "': " + e.Message + " | схема: " + schemaJson);
       }
-      var def = new ToolDef { Name = name, Description = description, SchemaJson = canonical, Handler = handler };
+      var def = new ToolDef { Name = name, Description = description, SchemaJson = canonical, Section = section, Handler = handler };
       tools.Add(def);
       if (!toolIndex.ContainsKey(name)) toolIndex[name] = def; // первое имя выигрывает, как и в линейном Find
     }

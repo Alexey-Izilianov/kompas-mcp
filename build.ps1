@@ -2,10 +2,17 @@ $ErrorActionPreference = "Stop"
 $dir   = $PSScriptRoot
 $csc   = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
-# interop-DLL лежат в корне решения рядом с репозиторием (папка kompas-test)
-# либо кладите их в lib\ рядом с build.ps1
+# interop-DLL: lib\ рядом с build.ps1, затем папка уровнем выше; если нет нигде —
+# генерируются из библиотек типов установленного КОМПАСа (interop.ps1 -> lib\)
 $libDir = Join-Path $dir "lib"
-if (-not (Test-Path $libDir)) { $libDir = Split-Path $dir -Parent }
+if (-not (Test-Path (Join-Path $libDir "Kompas6API5.dll"))) {
+  $parent = Split-Path $dir -Parent
+  if (Test-Path (Join-Path $parent "Kompas6API5.dll")) { $libDir = $parent }
+  else {
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $dir "interop.ps1") -Target $libDir
+    if ($LASTEXITCODE -ne 0) { throw "interop.ps1 failed" }
+  }
+}
 
 $out = Join-Path $dir "KompasMcp.exe"
 # COM-библиотека Давинчи живёт в davinci\src\DavinciLib.cs (сборка отдельно,

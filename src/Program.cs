@@ -14,9 +14,23 @@ namespace KompasMcp
     [STAThread]
     static int Main(string[] args)
     {
-      Log.Write("=== kompas-mcp started, pid=" + ProcessId() + " ===");
       try { Console.OutputEncoding = new UTF8Encoding(false); }
       catch (Exception e) { Log.Error("OutputEncoding", e); }
+      if (HasFlag(args, "--version"))
+      {
+        Console.WriteLine(Rpc.ServerName + " " + Rpc.ServerVersion);
+        return 0;
+      }
+      int md = Array.IndexOf(args, "--tools-md");
+      if (md >= 0)
+      {
+        // справочник инструментов из реестра: docs/tools.md всегда совпадает со схемами
+        string text = ToolsDoc.Markdown();
+        if (md + 1 < args.Length) File.WriteAllText(args[md + 1], text, new UTF8Encoding(false));
+        else Console.Write(text);
+        return 0;
+      }
+      Log.Write("=== kompas-mcp " + Rpc.ServerVersion + " started, pid=" + ProcessId() + " ===");
       KompasHost.ConfigureFromArgs(args);
       if (HasFlag(args, "--panel")) return PanelMain();
       StdioLoop();

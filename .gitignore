@@ -7,9 +7,10 @@ build_out.txt
 *.dll
 lib/
 
-# логи и выходные файлы
+# логи, выходные файлы, архив выпуска
 kompas-mcp.log
 mcp-out/
+dist/
 tests/*_out.jsonl
 
 # рабочая отладка (не часть проекта)

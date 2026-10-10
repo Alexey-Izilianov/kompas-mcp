@@ -114,19 +114,26 @@ namespace KompasMcp.Gost
       }
     }
 
-    // Код: посадочный диаметр = (code % 100)*5, напр. 208 => d=40, D=80, B=18
+    // ГОСТ 8338-75, лёгкая (200) и средняя (300) серии. Код: посадочный диаметр = (code % 100)*5,
+    // напр. 208 => d=40, D=80, B=18. Масса и диаметр шарика — справочные.
     public static BallBearing Bearing(int code)
     {
       double bore = (code % 100) * 5.0;
       double dOuter, width, mass, ball;
       if (code >= 300 && code < 400)
       {
-        // серия 300 (средняя): D = bore*2.2 примерно
         switch (code)
         {
           case 305: dOuter = 62; width = 17; mass = 0.229; ball = 11.5; break;
           case 306: dOuter = 72; width = 19; mass = 0.345; ball = 12.7; break;
           case 307: dOuter = 80; width = 21; mass = 0.414; ball = 13.49; break;
+          case 308: dOuter = 90; width = 23; mass = 0.63; ball = 15.08; break;
+          case 309: dOuter = 100; width = 25; mass = 0.83; ball = 17.46; break;
+          case 310: dOuter = 110; width = 27; mass = 1.08; ball = 19.05; break;
+          case 311: dOuter = 120; width = 29; mass = 1.37; ball = 20.64; break;
+          case 312: dOuter = 130; width = 31; mass = 1.71; ball = 22.23; break;
+          case 313: dOuter = 140; width = 33; mass = 2.11; ball = 23.81; break;
+          case 314: dOuter = 150; width = 35; mass = 2.60; ball = 25.4; break;
           default: return null;
         }
       }
@@ -144,6 +151,11 @@ namespace KompasMcp.Gost
           case 208: dOuter = 80; width = 18; mass = 0.368; ball = 12.7; break;
           case 209: dOuter = 85; width = 19; mass = 0.414; ball = 12.7; break;
           case 210: dOuter = 90; width = 20; mass = 0.455; ball = 14.29; break;
+          case 211: dOuter = 100; width = 21; mass = 0.60; ball = 14.29; break;
+          case 212: dOuter = 110; width = 22; mass = 0.78; ball = 15.88; break;
+          case 213: dOuter = 120; width = 23; mass = 0.99; ball = 16.67; break;
+          case 214: dOuter = 125; width = 24; mass = 1.08; ball = 17.46; break;
+          case 215: dOuter = 130; width = 25; mass = 1.18; ball = 17.46; break;
           default: return null;
         }
       }

@@ -1,6 +1,13 @@
 {"id":1,"method":"initialize","params":{}}
 {"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
-{"id":3,"method":"tools/call","params":{"name":"bevel_gear_drawing","arguments":{"me":3,"z":40,"delta":45,"width":25,"bore":24,"path":"mcp-out\\bevel1.cdw","png":"mcp-out\\bevel1.png"}}}
-{"id":4,"method":"tools/call","params":{"name":"worm_drawing","arguments":{"m":5,"z1":2,"q":10,"z2":40,"path":"mcp-out\\worm1.cdw","png":"mcp-out\\worm1.png"}}}
-{"id":5,"method":"tools/call","params":{"name":"worm_wheel_drawing","arguments":{"m":5,"z1":2,"q":10,"z2":40,"bore":25,"path":"mcp-out\\wwheel1.cdw","png":"mcp-out\\wwheel1.png"}}}
-{"id":6,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"bevel_gear_drawing","arguments":{"me":3,"z":40,"delta":63.43,"bore":30,"designation":"АБВГ.721111.001","path":"mcp-out\\bevel1.cdw","png":"mcp-out\\bevel1.png"}}}
+{"id":4,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":5,"method":"tools/call","params":{"name":"worm_drawing","arguments":{"m":5,"z1":2,"q":10,"z2":40,"designation":"АБВГ.721111.002","path":"mcp-out\\worm1.cdw","png":"mcp-out\\worm1.png"}}}
+{"id":6,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":7,"method":"tools/call","params":{"name":"worm_wheel_drawing","arguments":{"m":5,"z1":2,"q":10,"z2":40,"bore":40,"designation":"АБВГ.721111.003","path":"mcp-out\\wwheel1.cdw","png":"mcp-out\\wwheel1.png"}}}
+{"id":8,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":9,"method":"tools/call","params":{"name":"gear_drawing","arguments":{"m":2,"z":40,"width":22,"bore":18,"designation":"АБВГ.721111.004","path":"mcp-out\\gear2d.cdw","png":"mcp-out\\gear2d.png"}}}
+{"id":10,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":11,"method":"tools/call","params":{"name":"spring_drawing","arguments":{"wireDiameter":4,"coilDiameter":40,"n":6,"t":12,"designation":"АБВГ.753111.005","path":"mcp-out\\spring2d.cdw","png":"mcp-out\\spring2d.png"}}}
+{"id":12,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":13,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

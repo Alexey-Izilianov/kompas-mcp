@@ -1,0 +1,15 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":3,"method":"tools/call","params":{"name":"spring_create","arguments":{"wireDiameter":4,"coilDiameter":40,"n":6,"t":12,"path":"mcp-out\\spring_c.m3d"}}}
+{"id":4,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\spring_c.png","resolution":100}}}
+{"id":5,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\spring_c_front.png","resolution":100,"view":"front"}}}
+{"id":6,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":7,"method":"tools/call","params":{"name":"spring_create","arguments":{"type":"extension","wireDiameter":2,"coilDiameter":16,"n":12,"path":"mcp-out\\spring_e.m3d"}}}
+{"id":8,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\spring_e.png","resolution":100}}}
+{"id":9,"method":"tools/call","params":{"name":"render_png_3d","arguments":{"path":"mcp-out\\spring_e_front.png","resolution":100,"view":"front"}}}
+{"id":10,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":11,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"bearing","code":212,"path":"mcp-out\\bearing212.m3d"}}}
+{"id":12,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":13,"method":"tools/call","params":{"name":"std_part","arguments":{"kind":"bearing","code":312,"balls":true,"path":"mcp-out\\bearing312.m3d"}}}
+{"id":14,"method":"tools/call","params":{"name":"close_part","arguments":{}}}
+{"id":15,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

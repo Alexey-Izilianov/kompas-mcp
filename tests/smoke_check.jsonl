@@ -1,0 +1,9 @@
+{"id":1,"method":"initialize","params":{}}
+{"id":2,"method":"tools/call","params":{"name":"gear_check","arguments":{"m":2,"z1":20,"z2":40,"width":22,"torque":15,"rpm":1000,"ratio":2}}}
+{"id":3,"method":"tools/call","params":{"name":"gear_check","arguments":{"m":2,"z1":20,"z2":40,"width":22,"torque":60,"rpm":1000}}}
+{"id":4,"method":"tools/call","params":{"name":"worm_check","arguments":{"m":5,"z1":2,"q":10,"z2":40,"torque":400,"rpm":1450,"ratio":20}}}
+{"id":5,"method":"tools/call","params":{"name":"spring_check","arguments":{"wireDiameter":4,"coilDiameter":40,"n":6,"t":12,"F1":50,"F2":180}}}
+{"id":6,"method":"tools/call","params":{"name":"kompas_start","arguments":{}}}
+{"id":7,"method":"tools/call","params":{"name":"spring_drawing","arguments":{"wireDiameter":4,"coilDiameter":40,"n":6,"t":12,"F1":50,"F2":180,"designation":"АБВГ.753111.006","path":"mcp-out\\spring_loads.cdw","png":"mcp-out\\spring_loads.png"}}}
+{"id":8,"method":"tools/call","params":{"name":"close_drawing","arguments":{}}}
+{"id":9,"method":"tools/call","params":{"name":"kompas_stop","arguments":{}}}

@@ -23,27 +23,36 @@ namespace KompasMcp.Tools
         a => SpringCalc(a));
 
       ToolRegistry.Add("spring_drawing",
-        "2D-чертёж винтовой цилиндрической пружины сжатия по ГОСТ 2.401: сечения витков (окружности с штриховкой), видимые передние полувитки наклонными линиями, опорные плоскости, размеры (H0, d, D, наружный, t), таблица параметров. Параметры — как у spring_calc.",
+        "2D-чертёж винтовой цилиндрической пружины сжатия по ГОСТ 2.401: сечения витков со штриховкой, видимые передние полувитки, опорные плоскости, размеры (H0, d, D, наружный, t), технические требования (навивка, число витков, длина развёрнутой проволоки), штамп. При заданных F1/F2 — диаграмма испытаний (H1..H3, F1..F3) и силы в технических требованиях (расчёт как у spring_check). Параметры — как у spring_calc.",
         @"{""type"":""object"",""properties"":{
 ""wireDiameter"":{""type"":""number"",""description"":""Диаметр проволоки d (мм)""},
 ""coilDiameter"":{""type"":""number"",""description"":""Средний диаметр витка D (мм)""},
 ""n"":{""type"":""integer"",""description"":""Число рабочих витков""},
 ""t"":{""type"":""number"",""description"":""Шаг (0.3*D если не задан)""},
-""scale"":{""type"":""number"",""description"":""Масштаб вида (по умолчанию 1)""},
+""F1"":{""type"":""number"",""description"":""Сила предварительной деформации, Н — вместе с F2 включает диаграмму испытаний""},
+""F2"":{""type"":""number"",""description"":""Сила рабочей деформации, Н""},
+""tauAllow"":{""type"":""number"",""description"":""Допускаемое напряжение при F3, МПа (деф 785)""},
+""scale"":{""type"":""number"",""description"":""Масштаб вида (по умолчанию — наибольший стандартный, при котором лист вмещает вид)""},
+""x"":{""type"":""number"",""description"":""X оси пружины на листе (по умолчанию — по центру поля)""},
+""y"":{""type"":""number"",""description"":""Y нижней опорной плоскости на листе""},
+""material"":{""type"":""string""},""designation"":{""type"":""string"",""description"":""Обозначение в штамп""},
+""tech"":{""type"":""array"",""items"":{""type"":""string""},""description"":""Технические требования (по умолчанию — навивка, витки, длина проволоки, твёрдость)""},
 ""path"":{""type"":""string"",""description"":""Путь сохранения .cdw""},
-""x"":{""type"":""number"",""description"":""X оси пружины на листе (по умолчанию 150)""},
-""y"":{""type"":""number"",""description"":""Y нижней опорной плоскости на листе (по умолчанию 90)""}}}",
+""png"":{""type"":""string"",""description"":""Путь PNG-рендера листа""}},
+""required"":[""wireDiameter"",""coilDiameter"",""n""]}",
         a => SpringDrawing(a));
 
       ToolRegistry.Add("spring_create",
-        "Создать 3D-пружину сжатия: спираль o3d_cylindricSpiral + выдавливание круга проволоки по траектории.",
+        "3D-модель винтовой цилиндрической пружины (навивка правая). compression — сжатия: опорные витки с шагом d, рабочие с шагом t, торцы сошлифованы, высота H0 как на чертеже. extension — растяжения: витки вплотную, зацепы (прямой участок + полупетля диаметром D) на обоих концах. Масса — с переоткрытием файла (у кинематических тел КОМПАС иначе отдаёт 0).",
         @"{""type"":""object"",""properties"":{
+""type"":{""type"":""string"",""enum"":[""compression"",""extension""],""description"":""По умолчанию compression""},
 ""wireDiameter"":{""type"":""number"",""description"":""Диаметр проволоки d (мм)""},
 ""coilDiameter"":{""type"":""number"",""description"":""Средний диаметр витка D (мм)""},
 ""n"":{""type"":""integer"",""description"":""Число рабочих витков""},
-""t"":{""type"":""number"",""description"":""Шаг (0.3*coilDiameter если не задан)""},
+""t"":{""type"":""number"",""description"":""Шаг рабочих витков сжатия (0.3*coilDiameter если не задан)""},
 ""name"":{""type"":""string""},
-""path"":{""type"":""string"",""description"":""Путь сохранения .m3d""}}}",
+""path"":{""type"":""string"",""description"":""Путь сохранения .m3d""}},
+""required"":[""wireDiameter"",""coilDiameter"",""n""]}",
         a => SpringCreate(a));
     }
 
@@ -111,13 +120,23 @@ namespace KompasMcp.Tools
       double d = ToolRegistry.GetDbl(a, "wireDiameter");
       double D = ToolRegistry.GetDbl(a, "coilDiameter");
       int n = ToolRegistry.GetInt(a, "n");
-      double? tArg = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
-      Gost13765.Spring s = Gost13765.Calc(d, D, n, tArg, null);
+      // при заданных F1/F2 — диаграмма испытаний справа и силы в технических требованиях
+      bool loads = a.ContainsKey("F1") && a.ContainsKey("F2");
+      Gost13765.Spring s;
+      Strength.SpringResult load = null;
+      if (loads) load = ToolsCheck.SpringLoads(a, out s);
+      else
+      {
+        double? tArg = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
+        try { s = Gost13765.Calc(d, D, n, tArg, null); }
+        catch (ArgumentException e) { throw new ToolException(e.Message); }
+      }
       double t = s.T;
-      double scale = ToolRegistry.GetDbl(a, "scale", 1);
-      if (scale <= 0) throw new ToolException("scale должен быть > 0");
-      double x0 = ToolRegistry.GetDbl(a, "x", 150);
-      double y0 = ToolRegistry.GetDbl(a, "y", 90);
+      double rOut = (D + d) / 2.0;
+      double[] fit = DrawKit.Fit(-rOut, rOut, 0, s.H0, 30, loads ? 125 : 34, 42, 12, ToolRegistry.GetDbl(a, "scale", 0));
+      double scale = fit[2];
+      double x0 = ToolRegistry.GetDbl(a, "x", fit[0]);
+      double y0 = ToolRegistry.GetDbl(a, "y", fit[1]);
 
       Dictionary<string, object> createArgs = new Dictionary<string, object>();
       string path = ToolRegistry.GetStr(a, "path", null);
@@ -129,7 +148,6 @@ namespace KompasMcp.Tools
       ksDocument2D d2d = Tools2D.GetDoc();
       double H0 = s.H0;
       double rHalf = (D + d) / 2.0;      // наружный радиус на виде
-      double zTop = H0 - d / 2.0;        // центр сечений верхнего опорного витка
 
       // штриховка: один и тот же набор параметров для всех сечений
       Dictionary<string, object> hatchArgs = new Dictionary<string, object>();
@@ -143,31 +161,28 @@ namespace KompasMcp.Tools
         for (int j = 0; j < 2; j++)
           SpringCoil(d2d, supportX[j], supportZ[i], d, hatchArgs);
 
-      // рабочие витки: правые z=d+(j-0.5)t, левые z=d+j*t (левое выше правого на t/2)
-      double sin45 = Math.Sin(Math.PI / 4.0)* (d/2.0);
-      double cos45 = Math.Cos(Math.PI / 4.0)* (d/2.0);
-      double zLastL = 0, zLastR = 0;
+      // Сечения вдоль витка чередуются справа/слева через t/2: опорные (обе стороны у плоскости),
+      // правые рабочие z = d+(j−0.5)t (j = 1..n), левые z = d+j·t (j = 1..n−1) — так концы
+      // симметричны и последнее левое не налезает на верхнее опорное. Видимы передние полувитки
+      // (справа вверх-влево); последний правый уходит в верхнее опорное слева.
+      double sin45 = Math.Sin(Math.PI / 4.0) * (d / 2.0);
+      double cos45 = Math.Cos(Math.PI / 4.0) * (d / 2.0);
+      double zLastR = 0;
       for (int j = 1; j <= n; j++)
       {
         double zr = d + (j - 0.5) * t;
-        double zl = d + j * t;
+        double zl = j < n ? d + j * t : H0 - d / 2.0;
         SpringCoil(d2d, D / 2.0, zr, d, hatchArgs);
-        SpringCoil(d2d, -D / 2.0, zl, d, hatchArgs);
-        // видимый передний полувиток: от правого сечения вверх-влево к левому
+        if (j < n) SpringCoil(d2d, -D / 2.0, zl, d, hatchArgs);
         d2d.ksLineSeg(D / 2.0 - cos45, zr + sin45, -D / 2.0 + cos45, zl + sin45, 1);
-        zLastR = zr; zLastL = zl;
+        zLastR = zr;
       }
-      // переход от опорного витка к первому рабочему: крутая линия от правого
-      // опорного сечения вверх-влево к первому левому рабочему.
-      // Наверху соединительная линия к верхнему опорному НЕ рисуется:
-      // это задняя (невидимая) сторона полувитка.
-      d2d.ksLineSeg(D / 2.0 - cos45, d / 2.0 + sin45, -D / 2.0 + cos45, d + t + sin45, 1);
 
       // опорные плоскости (сплошная основная)
       d2d.ksLineSeg(-rHalf, 0, rHalf, 0, 1);
       d2d.ksLineSeg(-rHalf, H0, rHalf, H0, 1);
       // ось пружины
-      d2d.ksLineSeg(0, -10, 0, H0 + 10, 3);
+      d2d.ksLineSeg(0, -6 / scale, 0, H0 + 6 / scale, 3);
 
       // размеры: H0 слева снаружи, ⌀D и ⌀(D+d) снизу, t справа снаружи, ⌀d хордой сечения
       Dictionary<string, object> dimH0 = new Dictionary<string, object>();
@@ -195,46 +210,46 @@ namespace KompasMcp.Tools
       dimW["ang"] = 0.0; dimW["dx"] = 0.0; dimW["dy"] = -8.0; dimW["sign"] = 1;
       Tools2D.LinDim(dimW);
 
-      // таблица параметров (ГОСТ 2.401, масштаб 1 — мм листа)
-      Tools2D.MakeView(258.0, 130.0, 1.0, "Таблица параметров");
-      List<string[]> rows = new List<string[]>();
-      rows.Add(new string[] { "Диаметр проволоки", Tools2D.FmtNum(d) });
-      rows.Add(new string[] { "Средний диаметр витка", Tools2D.FmtNum(D) });
-      rows.Add(new string[] { "Шаг витка", Tools2D.FmtNum(t) });
-      rows.Add(new string[] { "Рабочих витков", n.ToString(System.Globalization.CultureInfo.InvariantCulture) });
-      rows.Add(new string[] { "Полных витков", s.TotalCoils.ToString(System.Globalization.CultureInfo.InvariantCulture) });
-      rows.Add(new string[] { "Направление навивки", "правое" });
-      rows.Add(new string[] { "Длина развёрнутой проволоки", Tools2D.FmtNum(Math.Round(s.WireLen, 1)) });
+      if (load != null) TestDiagram(d2d, s, load, rHalf, scale);
 
-      double col1 = 105, rowH = 10;
-      double tw = col1 + 60, th = rows.Count * rowH;
-      for (int i = 0; i <= rows.Count; i++)
-        d2d.ksLineSeg(0, i * rowH, tw, i * rowH, 1);
-      d2d.ksLineSeg(0, 0, 0, th, 1);
-      d2d.ksLineSeg(col1, 0, col1, th, 1);
-      d2d.ksLineSeg(tw, 0, tw, th, 1);
-      for (int i = 0; i < rows.Count; i++)
-      {
-        string[] row = rows[i];
-        double top = th - i * rowH;
-        d2d.ksText(2, top - rowH / 2.0 - 1.8, 0, 5, 1, 0, row[0]);
-        d2d.ksText(col1 + 2, top - rowH / 2.0 - 1.8, 0, 5, 1, 0, row[1]);
-      }
-
+      // по ГОСТ 2.401 характеристики витков — в технических требованиях
       Dictionary<string, object> res = new Dictionary<string, object>();
-      res["path"] = Tools2D.DocPath;
       res["h0_mm"] = Math.Round(H0, 2);
       res["t_mm"] = Math.Round(t, 2);
-      double topY = y0 + scale * (H0 + 10);
-      double leftX = x0 + scale * (-rHalf - 12.0 - 15.0);
-      double rightX = x0 + scale * (rHalf + 14.0 + 20.0);
-      if (topY > 285 || leftX < 25 || rightX > 250)
+      List<string> tech = DrawKit.TechItems(a,
+        "Направление навивки правое.",
+        "Число рабочих витков n = " + n + ".",
+        "Число витков полное n1 = " + s.TotalCoils.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".",
+        "Длина развёрнутой пружины L = " + Tools2D.FmtNum(Math.Round(s.WireLen, 1)) + " мм.",
+        "44...50 HRC.");
+      if (load != null)
       {
-        res["warning"] = "вид пружины/размеры близки к границам листа (" +
-          Math.Round(leftX, 0) + ".." + Math.Round(rightX, 0) + ", сверху до " + Math.Round(topY, 0) +
-          ") — подберите scale/x/y";
+        if (!a.ContainsKey("tech")) tech.AddRange(ToolsCheck.SpringTech(load));
+        res["F3_N"] = Math.Round(load.F3, 1);
+        res["check_ok"] = load.Ok;
       }
+      DrawKit.Finish(a, res, "Пружина", "Проволока 60С2А ГОСТ 14963-78", scale, tech, 292.0);
       return res;
+    }
+
+    // Диаграмма испытаний (ГОСТ 2.401): ось сил — на уровне опорной плоскости, характеристика —
+    // от (0; H0) до (F3; H3); для F1..F3 — линии высот от пружины, выноски к оси сил и размеры H1..H3.
+    static void TestDiagram(ksDocument2D d, Gost13765.Spring s, Strength.SpringResult r, double rOut, double scale)
+    {
+      double x0 = rOut + 30 / scale, w = 45 / scale, from = rOut + 2 / scale;
+      double[] f = { r.F1, r.F2, r.F3 };
+      double[] h = { r.H1, r.H2, r.H3 };
+      d.ksLineSeg(x0, 0, x0 + w + 6 / scale, 0, 2);
+      d.ksLineSeg(from, s.H0, x0, s.H0, 2);
+      d.ksLineSeg(x0, s.H0, x0 + w, r.H3, 1);
+      for (int i = 0; i < 3; i++)
+      {
+        double x = x0 + w * f[i] / r.F3;
+        d.ksLineSeg(from, h[i], x, h[i], 2);
+        d.ksLineSeg(x, h[i], x, 0, 2);
+        d.ksText(x - 2.5 / scale, -6 / scale, 0, 3.5, 1, 0, "F" + (i + 1));
+        DrawKit.Dim(x0 + w + 6 / scale, 0, x, h[i], true, 10 + 9 * i);
+      }
     }
 
     static object SpringCreate(Dictionary<string, object> a)
@@ -242,67 +257,118 @@ namespace KompasMcp.Tools
       double d = ToolRegistry.GetDbl(a, "wireDiameter");
       double D = ToolRegistry.GetDbl(a, "coilDiameter");
       int n = ToolRegistry.GetInt(a, "n");
-      double? t = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
-      Gost13765.Spring s = Gost13765.Calc(d, D, n, t, null);
+      string type = ToolRegistry.GetStr(a, "type", "compression");
+      if (type != "compression" && type != "extension") throw new ToolException("type: compression или extension");
+      bool extension = type == "extension";
+      double? t = extension ? (double?)d : a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
+      Gost13765.Spring s;
+      try { s = Gost13765.Calc(d, D, n, t, null); }
+      catch (ArgumentException e) { throw new ToolException(e.Message); }
 
-      string name = ToolRegistry.GetStr(a, "name", "Пружина d" + d + " D" + D);
       Dictionary<string, object> createArgs = new Dictionary<string, object>();
-      createArgs["name"] = name;
+      createArgs["name"] = ToolRegistry.GetStr(a, "name",
+        (extension ? "Пружина растяжения d" : "Пружина d") + Tools2D.FmtNum(d) + " D" + Tools2D.FmtNum(D));
       string path = ToolRegistry.GetStr(a, "path", null);
       if (path != null) createArgs["path"] = path;
       Tools3D.CreatePart(createArgs);
 
-      ksPart p = Tools3D.GetPart();
+      Dictionary<string, object> res = new Dictionary<string, object>();
+      if (extension) BuildExtension(d, D, n, res);
+      else BuildCompression(d, D, n, s.T, s.H0, res);
 
-      // траектория: цилиндрическая спираль на XOY
-      ksEntity spiral = (ksEntity)p.NewEntity((short)Obj3dType.o3d_cylindricSpiral);
-      ksCylindricSpiralDefinition spDef = (ksCylindricSpiralDefinition)spiral.GetDefinition();
-      spDef.SetPlane(Tools3D.PlaneByName(p, "XOY"));
-      spDef.SetLocation(0, 0);
-      spDef.turn = s.TotalCoils;
-      spDef.step = s.T;
-      spDef.diam = D;
-      if (!spiral.Create()) throw new ToolException("cylindricSpiral.Create вернул 0");
-
-      // проволока: круг d/2 в XOZ в точке старта спирали (D/2, 0)
-      Dictionary<string, object> sk = new Dictionary<string, object>();
-      sk["plane"] = "XOZ";
-      Dictionary<string, object> circ = new Dictionary<string, object>();
-      circ["type"] = "circle";
-      circ["xc"] = Math.Round(D / 2.0, 4);
-      circ["yc"] = 0.0;
-      circ["r"] = d / 2.0;
-      List<object> els = new List<object>();
-      els.Add(circ);
-      sk["elements"] = els;
-      Tools3D.Sketch(sk);
-      ksEntity skEntity = Tools3D.LastSketch;
-
-      // эволюция: круг по спирали
-      ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_bossEvolution);
-      ksBossEvolutionDefinition def = (ksBossEvolutionDefinition)op.GetDefinition();
-      def.SetSketch(skEntity);
-      ksEntityCollection pathArr = (ksEntityCollection)def.PathPartArray();
-      pathArr.Add(spiral);
-      if (!op.Create()) throw new ToolException("bossEvolution.Create вернул 0");
-      p.RebuildModel();
-
-      Dictionary<string, object> mat = new Dictionary<string, object>();
-      mat["name"] = "Сталь пружинная 60С2А ГОСТ 14963-78";
-      mat["density"] = 7850.0;
-      Tools3D.SetMaterialOp(mat);
-
+      Tools3D.SetMaterialOp(new Dictionary<string, object>
+        { { "name", "Сталь пружинная 60С2А ГОСТ 14963-78" }, { "density", 7850.0 } });
       Dictionary<string, object> saveArgs = new Dictionary<string, object>();
       if (path != null) saveArgs["path"] = path;
       Tools3D.SavePart(saveArgs);
+      res["saved"] = Tools3D.PartPath;
+      res["type"] = type;
+      res["stiffness_N_per_mm"] = Math.Round(s.Stiffness, 3);
+      res["mass_kg"] = Tools3D.ReliableMass();
+      return res;
+    }
 
-      return new Dictionary<string, object>
+    // Сжатия: опорные витки с шагом d по концам, n рабочих с шагом t, торцы сошлифованы
+    // плоскостями z = 0 и z = H0 (как на чертеже ГОСТ 2.401). Три спирали — три кинематических
+    // тела: смена шага на одной траектории даёт излом, который выдавливание не проходит.
+    static void BuildCompression(double d, double D, int n, double t, double H0, Dictionary<string, object> res)
+    {
+      ksPart p = Tools3D.GetPart();
+      double[] z0 = { 0, d, d + n * t };
+      double[] step = { d, t, d };
+      double[] turns = { 1, n, 1 };
+      for (int i = 0; i < 3; i++)
       {
-        { "saved", saveArgs.ContainsKey("path") ? saveArgs["path"] : Tools3D.PartPath },
-        { "h0_mm", s.H0 }, { "t_mm", s.T }, { "total_coils", s.TotalCoils },
-        { "stiffness_N_per_mm", Math.Round(s.Stiffness, 3) },
-        { "mass_kg", Tools3D.CurrentMass() }
+        ksEntity plane = i == 0 ? Tools3D.PlaneByName(p, "XOY") : Tools3D.OffsetPlane("XOY", z0[i]);
+        ksEntity spiral = Tools3D.Spiral(plane, D, step[i], turns[i], rightHand: true);
+        ksEntity wire = WireSection(D / 2.0, z0[i], d);
+        Tools3D.Evolution(wire, spiral, cut: false);
+      }
+      // шлифовка торцов: срезаем половину проволоки ниже 0 и выше H0
+      Grind(D, d, 0, -1);
+      Grind(D, d, H0, 1);
+      res["h0_mm"] = H0;
+      res["t_mm"] = t;
+      res["total_coils"] = n + 2;
+    }
+
+    // Растяжения: витки вплотную (шаг d), зацепы — прямой участок d и полупетля диаметром D
+    // в осевой плоскости XOZ (вращение сечения проволоки вокруг оси, параллельной Y).
+    static void BuildExtension(double d, double D, int n, Dictionary<string, object> res)
+    {
+      ksPart p = Tools3D.GetPart();
+      double r = D / 2.0, top = n * d, leg = d;
+      Leg(r, -leg, leg, d, baseOp: true);
+      Tools3D.RevolveCircle(Tools3D.OffsetPlane("XOY", -leg), r, 0, d / 2.0,
+        new[] { 0.0, -D }, new[] { 0.0, D }, 180, reverse: true);
+      ksEntity spiral = Tools3D.Spiral(Tools3D.PlaneByName(p, "XOY"), D, d, n, rightHand: true);
+      Tools3D.Evolution(WireSection(r, 0, d), spiral, cut: false);
+      Leg(r, top, leg, d, baseOp: false);
+      Tools3D.RevolveCircle(Tools3D.OffsetPlane("XOY", top + leg), r, 0, d / 2.0,
+        new[] { 0.0, -D }, new[] { 0.0, D }, 180);
+      double hook = leg + r + d / 2.0;
+      res["body_length_mm"] = (n + 1) * d;
+      res["length_mm"] = top + 2 * hook;
+      res["hook_inner_mm"] = top + 2 * (leg + r) - d;
+      res["coils"] = n;
+    }
+
+    // круг проволоки в осевой плоскости XOZ в точке (x, z) — начало спирали (y эскиза = −z)
+    static ksEntity WireSection(double x, double z, double d)
+    {
+      Tools3D.Sketch(new Dictionary<string, object>
+      {
+        { "plane", "XOZ" },
+        { "elements", new List<object> { new Dictionary<string, object>
+          { { "type", "circle" }, { "xc", x }, { "yc", -z }, { "r", d / 2.0 } } } }
+      });
+      return Tools3D.LastSketch;
+    }
+
+    static void Leg(double x, double z0, double len, double d, bool baseOp)
+    {
+      Dictionary<string, object> sk = new Dictionary<string, object>
+      {
+        { "plane", "XOY" },
+        { "elements", new List<object> { new Dictionary<string, object>
+          { { "type", "circle" }, { "xc", x }, { "yc", 0.0 }, { "r", d / 2.0 } } } }
       };
+      if (z0 != 0) sk["offset"] = z0;
+      Tools3D.Sketch(sk);
+      Tools3D.Extrude(new Dictionary<string, object> { { "depth", len }, { "base", baseOp } }, cut: false);
+    }
+
+    static void Grind(double D, double d, double z, int dir)
+    {
+      Dictionary<string, object> sk = new Dictionary<string, object>
+      {
+        { "plane", "XOY" },
+        { "elements", new List<object> { new Dictionary<string, object>
+          { { "type", "circle" }, { "xc", 0.0 }, { "yc", 0.0 }, { "r", D } } } }
+      };
+      if (z != 0) sk["offset"] = z;
+      Tools3D.Sketch(sk);
+      Tools3D.Extrude(new Dictionary<string, object> { { "mode", "blind" }, { "depth", d }, { "direction", dir } }, cut: true);
     }
   }
 }

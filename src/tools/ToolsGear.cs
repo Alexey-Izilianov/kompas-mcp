@@ -212,8 +212,9 @@ namespace KompasMcp.Tools
       asmArgs["path"] = asmPath;
       Tools3D.CreateAssembly(asmArgs);
 
-      ksPart c1 = Tools3D.AddComponentImpl(path1, false);
-      ksPart c2 = Tools3D.AddComponentImpl(path2, false);
+      // внешними ссылками: в сборке остаются имена и файлы колёс (позиции, спецификация)
+      ksPart c1 = Tools3D.AddComponentImpl(path1, true);
+      ksPart c2 = Tools3D.AddComponentImpl(path2, true);
       try { Tools3D.GetPart().RebuildModel(); } catch { }
 
       // фаза зацепления: поворот колеса так, чтобы впадина встала против зуба шестерни

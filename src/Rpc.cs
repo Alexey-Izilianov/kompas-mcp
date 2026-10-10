@@ -8,8 +8,8 @@ namespace KompasMcp
   // Методы: initialize, ping, tools/list, tools/call; уведомления игнорируются.
   public static class Rpc
   {
-    const string ServerName = "kompas-mcp";
-    const string ServerVersion = "0.1.0";
+    public const string ServerName = "kompas-mcp";
+    public const string ServerVersion = "1.0.0";
 
     // Возвращает строку-ответ (одна строка JSON) или null, если отвечать не нужно.
     public static string Handle(string line)
