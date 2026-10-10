@@ -22,12 +22,13 @@ $refs = @()
 foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Kompas6Constants3D.dll","KAPITypes.dll")) {
   $refs += "-r:" + (Join-Path $libDir $n)
 }
-# WinForms-панель Давинчи
-$refs += "-r:System.Windows.Forms.dll"
-$refs += "-r:System.Drawing.dll"
+# WPF-панель Давинчи (сборки из каталога .NET Framework, рядом с csc)
+foreach ($n in @("WPF\PresentationCore.dll","WPF\PresentationFramework.dll","WPF\WindowsBase.dll","System.Xaml.dll")) {
+  $refs += "-r:" + (Join-Path (Split-Path $csc -Parent) $n)
+}
 
 $argList = @("-nologo","-codepage:65001","-platform:x64","-target:exe","-optimize+","-out:$out")
-# пиксель-арт аватар Давинчи как иконка exe
+# аватар Давинчи (портрет, davinci\gen_avatar.ps1) как иконка exe
 $ico = Join-Path $dir "davinci\avatar.ico"
 if (Test-Path $ico) { $argList += "/win32icon:$ico" }
 $argList += $refs + $sources

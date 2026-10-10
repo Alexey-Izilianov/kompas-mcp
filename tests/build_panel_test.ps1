@@ -10,7 +10,10 @@ $refs = @()
 foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Kompas6Constants3D.dll","KAPITypes.dll")) {
   $refs += "-r:" + (Join-Path $libDir $n)
 }
-$refs += @("-r:System.Windows.Forms.dll", "-r:System.Drawing.dll")
+# WPF-панель Давинчи (сборки из каталога .NET Framework, рядом с csc)
+foreach ($n in @("WPF\PresentationCore.dll","WPF\PresentationFramework.dll","WPF\WindowsBase.dll","System.Xaml.dll")) {
+  $refs += "-r:" + (Join-Path (Split-Path $csc -Parent) $n)
+}
 $out = Join-Path $PSScriptRoot "panel_test.exe"
 $argList = @("-nologo","-codepage:65001","-platform:x64","-main:PanelTest","-out:$out") + $refs + $sources
 & $csc @argList

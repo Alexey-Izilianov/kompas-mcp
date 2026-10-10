@@ -1,101 +1,98 @@
-# Pixel-art аватар «Давинчи» -> avatar.png (256x256) + avatar.ico (32+16).
-# Мотив: робот-механик в берете (отсылка к да Винчи) на «пергаментном» круге.
-# Grid: 16x16; '.' = прозрачный (углы круга).
+# Аватар «Давинчи»: avatar.svg (портрет Леонардо) -> avatar.png (256) + avatar.ico (16..256).
+# SVG растеризуется headless-браузером (Edge или Chrome) в 1024 px, затем уменьшается
+# ступенями по 2 — так мелкие размеры иконки остаются чёткими.
+#   powershell -ExecutionPolicy Bypass -File davinci\gen_avatar.ps1
 $ErrorActionPreference = 'Stop'
 $dir = $PSScriptRoot
+$svg = Join-Path $dir 'avatar.svg'
 
-$grid = @(
-  '.....KKKKKK.....',
-  '...KKPPPPPPKK...',
-  '..KPPPPPPPPPPK..',
-  '..KPPBBBBBBPPK..',
-  '.KPBBBBBBBBBBPK.',
-  '.PKKKKKKKKKKKKP.',
-  '.KDDDDDDDDDDDDK.',
-  'KDDDEEDDDDDEEDDK',
-  'KDDDEEDDDDDEEDDK',
-  'KDDDDDDDDDDDDDDK',
-  'KDDDDKKKKKKDDDDK',
-  'KDDDDDDDDDDDDDDK',
-  '.KDDDDDDDDDDDDK.',
-  '..KDDDDDDDDDDK..',
-  '...KPPPPPPPPK...',
-  '.....KKKKKK.....'
-)
+$browser = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+             "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+             "$env:ProgramFiles\Google\Chrome\Application\chrome.exe") |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $browser) { throw "Нужен Microsoft Edge или Google Chrome для растеризации SVG" }
 
-# palette
-$pal = @{
-  'K' = @(40, 34, 30)      # контур (сепия-тёмный)
-  'P' = @(232, 214, 168)   # пергамент
-  'B' = @(150, 42, 42)     # берет (кирпично-красный)
-  'D' = @(70, 80, 92)      # лицевая сталь
-  'E' = @(90, 220, 255)    # глаза, циановое свечение
-}
+$work = Join-Path ([IO.Path]::GetTempPath()) ("davinci-avatar-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory $work | Out-Null
+try {
+  $html = Join-Path $work 'page.html'
+  $big = Join-Path $work 'avatar1024.png'
+  $svgText = Get-Content $svg -Raw -Encoding UTF8
+  ("<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;background:transparent;overflow:hidden}" +
+   "svg{display:block;width:1024px;height:1024px}</style></head><body>" + $svgText + "</body></html>") |
+    Set-Content $html -Encoding UTF8
+  # браузер пишет отчёт в stderr — при Stop PowerShell счёл бы это ошибкой
+  $ErrorActionPreference = 'Continue'
+  & $browser --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$work\profile" `
+    --default-background-color=00000000 --window-size=1024,1024 --screenshot="$big" `
+    ("file:///" + ($html -replace '\\', '/')) 2>&1 | Out-Null
+  $ErrorActionPreference = 'Stop'
+  if (-not (Test-Path $big)) { throw "Браузер не создал растр SVG" }
 
-# sanity: все строки 16 символов, все символы известны
-if ($grid.Count -ne 16) { throw "grid must be 16 rows" }
-foreach ($row in $grid) {
-  if ($row.Length -ne 16) { throw ("row not 16 chars: [" + $row + "]") }
-  foreach ($ch in $row.ToCharArray()) {
-    if ($ch -ne '.' -and -not $pal.ContainsKey([string]$ch)) { throw ("unknown char: " + $ch) }
+  Add-Type -AssemblyName System.Drawing
+  $src = [System.Drawing.Bitmap]::FromFile($big)
+
+  function Scale([System.Drawing.Bitmap]$b, [int]$size) {
+    $r = New-Object System.Drawing.Bitmap $size, $size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $g = [System.Drawing.Graphics]::FromImage($r)
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $g.DrawImage($b, 0, 0, $size, $size)
+    $g.Dispose()
+    return $r
   }
-}
 
-Add-Type -AssemblyName System.Drawing
-
-function Render([int]$scale) {
-  $bmp = New-Object System.Drawing.Bitmap (16 * $scale), (16 * $scale)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  for ($y = 0; $y -lt 16; $y++) {
-    for ($x = 0; $x -lt 16; $x++) {
-      $ch = [string]$grid[$y][$x]
-      if ($ch -eq '.') { continue }
-      $c = $pal[$ch]
-      $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, $c[0], $c[1], $c[2]))
-      $rect = New-Object System.Drawing.Rectangle ($x * $scale), ($y * $scale), $scale, $scale
-      $g.FillRectangle($brush, $rect)
-      $brush.Dispose()
+  # ступенчатое уменьшение: каждый шаг не больше чем вдвое
+  function Downscale([System.Drawing.Bitmap]$b, [int]$size) {
+    $cur = $b
+    while ($cur.Width -gt 2 * $size) {
+      $next = Scale $cur ([int][Math]::Max($size, [Math]::Floor($cur.Width / 2)))
+      if ($cur -ne $b) { $cur.Dispose() }
+      $cur = $next
     }
+    $res = Scale $cur $size
+    if ($cur -ne $b) { $cur.Dispose() }
+    return $res
   }
-  $g.Dispose()
-  return $bmp
+
+  function PngBytes([System.Drawing.Bitmap]$b) {
+    $ms = New-Object System.IO.MemoryStream
+    $b.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bytes = $ms.ToArray(); $ms.Dispose()
+    return ,$bytes
+  }
+
+  $png = Downscale $src 256
+  $png.Save((Join-Path $dir 'avatar.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+  Write-Host "PNG OK: $(Join-Path $dir 'avatar.png')"
+
+  # ICO из PNG-кадров (Vista+): 256 записывается как 0 в байтах ширины/высоты
+  $sizes = @(256, 48, 32, 24, 16)
+  $frames = @()
+  foreach ($s in $sizes) {
+    $b = if ($s -eq 256) { $png } else { Downscale $src $s }
+    $frames += ,(PngBytes $b)
+    if ($s -ne 256) { $b.Dispose() }
+  }
+  $png.Dispose(); $src.Dispose()
+
+  $ico = Join-Path $dir 'avatar.ico'
+  $fs = [System.IO.File]::Create($ico)
+  $bw = New-Object System.IO.BinaryWriter $fs
+  $bw.Write([uint16]0); $bw.Write([uint16]1); $bw.Write([uint16]$sizes.Count)
+  $offset = 6 + 16 * $sizes.Count
+  for ($i = 0; $i -lt $sizes.Count; $i++) {
+    $wh = if ($sizes[$i] -ge 256) { 0 } else { $sizes[$i] }
+    $bw.Write([byte]$wh); $bw.Write([byte]$wh); $bw.Write([byte]0); $bw.Write([byte]0)
+    $bw.Write([uint16]1); $bw.Write([uint16]32)
+    $bw.Write([uint32]$frames[$i].Length); $bw.Write([uint32]$offset)
+    $offset += $frames[$i].Length
+  }
+  foreach ($f in $frames) { $bw.Write($f) }
+  $bw.Dispose(); $fs.Dispose()
+  Write-Host "ICO OK: $ico"
 }
-
-# PNG 256
-$png = Render 16
-$pngPath = Join-Path $dir 'avatar.png'
-$png.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
-$png.Dispose()
-Write-Host "PNG OK: $pngPath"
-
-# ICO with PNG-compressed 32 and 16 (Vista+ ICO)
-$pngBytes32 = $null
-$pngBytes16 = $null
-$bmp32 = Render 2
-$ms = New-Object System.IO.MemoryStream
-$bmp32.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-$pngBytes32 = $ms.ToArray()
-$ms.Dispose(); $bmp32.Dispose()
-$bmp16 = Render 1
-$ms = New-Object System.IO.MemoryStream
-$bmp16.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-$pngBytes16 = $ms.ToArray()
-$ms.Dispose(); $bmp16.Dispose()
-
-$icoPath = Join-Path $dir 'avatar.ico'
-$fs = [System.IO.File]::Create($icoPath)
-$bw = New-Object System.IO.BinaryWriter $fs
-$bw.Write([uint16]0); $bw.Write([uint16]1); $bw.Write([uint16]2)   # ICONDIR: 2 images
-$offset = 6 + 2 * 16                                                # 2 entries * 16 bytes
-# entry: width, height, colors, reserved, planes, bitcount, size, offset
-$bw.Write([byte]32); $bw.Write([byte]32); $bw.Write([byte]0); $bw.Write([byte]0)
-$bw.Write([uint16]1); $bw.Write([uint16]32)
-$bw.Write([uint32]$pngBytes32.Length); $bw.Write([uint32]$offset)
-$offset += $pngBytes32.Length
-$bw.Write([byte]16); $bw.Write([byte]16); $bw.Write([byte]0); $bw.Write([byte]0)
-$bw.Write([uint16]1); $bw.Write([uint16]32)
-$bw.Write([uint32]$pngBytes16.Length); $bw.Write([uint32]$offset)
-$offset += $pngBytes16.Length
-$bw.Write($pngBytes32); $bw.Write($pngBytes16)
-$bw.Dispose(); $fs.Dispose()
-Write-Host "ICO OK: $icoPath"
+finally {
+  Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+}

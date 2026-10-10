@@ -57,6 +57,9 @@ namespace KompasMcp
       {
         Davinci.DavinciSession.Init();
         Ui.DavinciPanel.SubmitHandler = Davinci.DavinciSession.Submit;
+        Ui.DavinciPanel.AbortHandler = Davinci.DavinciSession.Abort;
+        Ui.DavinciPanel.NewDialogHandler = Davinci.DavinciSession.Reset;
+        Ui.DavinciPanel.ClaudeStatusProvider = Davinci.DavinciSession.CheckClaude;
         Log.Write("panel: копилот подключён (DavinciSession)");
       }
       catch (Exception e)

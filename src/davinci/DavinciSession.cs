@@ -1,7 +1,7 @@
 // Сессия копилота (Этап 5): связывает панель Давинчи и ClaudeRunner.
 // SubmitHandler (UI-поток) ставит сообщение в очередь; runner работает в фоне,
-// события stream-json сокращённо попадают в лог панели через DavinciPanel.AppendLog.
-// Диалог непрерывный: следующее сообщение резюмится по session_id.
+// события stream-json уходят в панель: текст ответа, шаги инструментов, итог хода.
+// Диалог непрерывный: следующее сообщение резюмится по session_id; Reset — новый диалог.
 using System;
 using System.IO;
 using System.Threading;
@@ -16,9 +16,30 @@ namespace KompasMcp.Davinci
     static string mcpConfigPath;
     static ClaudeRunner runner;
     static string lastSessionId;
+    static bool answered;     // в текущем ходе уже был текст ответа (итог result его повторяет)
+    static bool failed;       // в текущем ходе уже показана ошибка API
+    static bool aborted;
+    static string lastApiError;  // ошибка API последнего запроса — для индикатора, до успешного ответа
 
     public static bool Busy { get { lock (Gate) { return runner != null && runner.Running; } } }
     public static string LastSessionId { get { lock (Gate) { return lastSessionId; } } }
+
+    // Индикатор Claude в панели: проверка окружения и API плюс ошибка последнего запроса.
+    // Полная проверка (deep) с успешным ответом модели снимает запомненную ошибку.
+    public static ServiceState CheckClaude(bool deep)
+    {
+      DavinciConfig c = cfg ?? (cfg = DavinciConfig.Load());
+      ServiceState s = ClaudeProbe.Check(c, deep);
+      string err;
+      lock (Gate)
+      {
+        if (deep && s.Ok) lastApiError = null;
+        err = lastApiError;
+      }
+      if (s.Ok && err != null)
+        return new ServiceState(false, "Claude: " + ClaudeProbe.Friendly(err), s.Detail + "\nпоследний запрос: " + err);
+      return s;
+    }
 
     static string SystemPrompt()
     {
@@ -66,6 +87,25 @@ namespace KompasMcp.Davinci
       Log.Write("session: init ok");
     }
 
+    // Копия текущих настроек — для страницы настроек панели.
+    public static DavinciConfig Config()
+    {
+      return (cfg ?? (cfg = DavinciConfig.Load())).Clone();
+    }
+
+    // Сохранить настройки и применить со следующего запроса (идущий запрос не трогаем).
+    public static void Apply(DavinciConfig c)
+    {
+      c.Save();
+      lock (Gate)
+      {
+        cfg = c;
+        mcpConfigPath = McpConfig.Write(c);
+        lastApiError = null;
+      }
+      Log.Write("session: настройки применены, источник=" + c.ResolvedProvider + ", модель=" + (ClaudeProbe.EffectiveModel(c) ?? "по умолчанию"));
+    }
+
     public static void Submit(string text)
     {
       if (mcpConfigPath == null) Init();
@@ -73,18 +113,21 @@ namespace KompasMcp.Davinci
       {
         if (runner != null && runner.Running)
         {
-          DavinciPanel.AppendLog("[давинчи] предыдущий запрос ещё выполняется — подожди или нажми «Прервать»");
+          DavinciPanel.Notice("Предыдущий запрос ещё выполняется — дождитесь ответа или остановите его.");
           return;
         }
+        answered = false;
+        failed = false;
+        aborted = false;
         runner = new ClaudeRunner();
         runner.Options = new ClaudeRunnerOptions();
         runner.Options.McpConfigPath = mcpConfigPath;
         runner.Options.Workspace = WorkspaceDir();
         runner.Options.SystemPrompt = SystemPrompt();
         runner.Options.ClaudeCmd = cfg.ClaudeCmd;
-        runner.Options.Model = cfg.Model;
+        runner.Options.Model = ClaudeProbe.EffectiveModel(cfg);
         runner.Options.TimeoutSec = cfg.TimeoutSec;
-        runner.Options.Env = cfg.Env;
+        runner.Options.Env = cfg.EffectiveEnv();
         runner.OnEvent += OnEvent;
         runner.OnStderr += OnStderr;
         runner.OnError += OnError;
@@ -95,7 +138,12 @@ namespace KompasMcp.Davinci
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
           try { runner.Run(message, resume); }
-          catch (Exception e) { Log.Error("session.Run", e); DavinciPanel.AppendLog("[ошибка запуска] " + e.Message); }
+          catch (Exception e)
+          {
+            Log.Error("session.Run", e);
+            DavinciPanel.Error("Не удалось запустить Claude Code: " + e.Message);
+            DavinciPanel.Busy = false;
+          }
         });
       }
     }
@@ -104,9 +152,22 @@ namespace KompasMcp.Davinci
     {
       ClaudeRunner r;
       lock (Gate) { r = runner; }
-      if (r == null || !r.Running) { DavinciPanel.AppendLog("[давинчи] нечего прерывать"); return; }
-      DavinciPanel.AppendLog("[давинчи] прерываю…");
+      if (r == null || !r.Running) return;
+      aborted = true;
+      DavinciPanel.Notice("Останавливаю запрос…");
       System.Threading.ThreadPool.QueueUserWorkItem(delegate { try { r.Stop(); } catch (Exception e) { Log.Error("abort", e); } });
+    }
+
+    // Новый диалог: следующий запрос начнёт разговор заново. false — идёт запрос.
+    public static bool Reset()
+    {
+      lock (Gate)
+      {
+        if (runner != null && runner.Running) return false;
+        lastSessionId = null;
+      }
+      Log.Write("session: новый диалог");
+      return true;
     }
 
     // Останов копилота при выходе панельного процесса: гасим claude, если он жив.
@@ -115,7 +176,6 @@ namespace KompasMcp.Davinci
       ClaudeRunner r;
       lock (Gate) { r = runner; }
       if (r == null || !r.Running) return;
-      DavinciPanel.AppendLog("[давинчи] останавливаю выполняющийся запрос…");
       try { r.Stop(); }
       catch (Exception e) { Log.Error("session.Shutdown", e); }
     }
@@ -124,23 +184,41 @@ namespace KompasMcp.Davinci
     {
       if (ev == null) return;
       if (ev.SessionId != null) lock (Gate) { lastSessionId = ev.SessionId; }
-      // ассистентский текст — главное содержимое ответа
-      if (!string.IsNullOrEmpty(ev.AssistantText))
-        DavinciPanel.AppendAssistant(ev.AssistantText);
-      else if (ev.Type == "assistant" && !string.IsNullOrEmpty(ev.ToolName))
-        DavinciPanel.AppendLog("[тул] " + ev.ToolName);
+      if (ev.Type == "assistant")
+      {
+        // "<synthetic>" — claude сам сообщает, что API не ответил (лимит, модель, связь)
+        if (ev.Model == "<synthetic>")
+          ApiFailed(ev.AssistantText);
+        else if (!string.IsNullOrEmpty(ev.AssistantText))
+        {
+          answered = true;
+          DavinciPanel.AppendAssistant(ev.AssistantText);
+        }
+        foreach (string tool in ev.ToolNames) DavinciPanel.ToolCall(tool);
+      }
+      else if (ev.Type == "user" && ev.ToolResultIsError)
+        DavinciPanel.ToolResult(true);
       else if (ev.Type == "result")
       {
-        string tail = "";
-        if (ev.TotalCostUsd > 0) tail += "  ($" + ev.TotalCostUsd.ToString("0.0000") + ")";
-        if (ev.NumTurns > 0) tail += ", оборотов: " + ev.NumTurns;
-        if (!string.IsNullOrEmpty(ev.ResultText))
-          DavinciPanel.AppendLog("[итог] " + ev.ResultText + tail);
-        else
-          DavinciPanel.AppendLog("[завершено]" + tail);
+        // итог повторяет последний текст ответа — показываем его, только если текста не было
+        if (ev.IsError) ApiFailed(string.IsNullOrEmpty(ev.ResultText) ? ev.Subtype : ev.ResultText);
+        else if (!failed && !answered && !string.IsNullOrEmpty(ev.ResultText))
+          DavinciPanel.AppendAssistant(ev.ResultText);
+        if (!failed && !ev.IsError) lock (Gate) { lastApiError = null; }
+        // стоимость не показываем: при стороннем ANTHROPIC_BASE_URL claude считает её по тарифам Anthropic
+        DavinciPanel.TurnDone(failed ? "ошибка" : null);
+        DavinciPanel.RefreshClaudeStatus();
       }
-      else if (ev.IsError)
-        DavinciPanel.AppendLog("[ошибка модели] " + (ev.ResultText ?? ""));
+    }
+
+    static void ApiFailed(string text)
+    {
+      if (failed) return;
+      failed = true;
+      string raw = string.IsNullOrEmpty(text) ? "нет ответа" : text.Trim();
+      lock (Gate) { lastApiError = raw; }
+      DavinciPanel.Error("Claude не ответил: " + ClaudeProbe.Friendly(raw) + (raw.Length <= 300 ? "\n" + raw : ""));
+      DavinciPanel.RefreshClaudeStatus();
     }
 
     static void OnStderr(string line)
@@ -150,13 +228,13 @@ namespace KompasMcp.Davinci
 
     static void OnError(Exception e)
     {
-      DavinciPanel.AppendLog("[ошибка runner] " + e.Message);
+      DavinciPanel.Error("Сбой запуска Claude Code: " + e.Message);
     }
 
     static void OnExit()
     {
+      if (aborted) DavinciPanel.TurnDone("остановлено");
       DavinciPanel.Busy = false;
-      DavinciPanel.AppendLog("[готово]");
     }
   }
 }

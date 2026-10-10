@@ -1,7 +1,7 @@
 # Сборка нативно-совместимой .rtw-библиотеки «Давинчи» без C++-компилятора:
 # csc -> ildasm -> inject_exports.py (.export) -> ilasm (+ rc-ресурсы).
-# ВНИМАНИЕ: если КОМПАС подключил Davinci.rtw, файл заблокирован процессом —
-# пересборку делать в DavinciNative.rtw (скрипт так и пишет) или перезапустить КОМПАС.
+# ВНИМАНИЕ: пока КОМПАС держит загруженную DavinciNative.rtw, файл заблокирован —
+# перед пересборкой закройте КОМПАС.
 $ErrorActionPreference = "Stop"
 $dir = $PSScriptRoot
 $net = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319"

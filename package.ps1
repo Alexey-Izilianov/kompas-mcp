@@ -25,7 +25,7 @@ Get-ChildItem (Join-Path $dir "tests") -Filter "smoke_*.jsonl" | Where-Object { 
 Copy-Item (Join-Path $dir "tests\run_smoke.ps1") (Join-Path $stage "examples")
 Copy-Item (Join-Path $dir "davinci\DavinciNative.rtw") (Join-Path $stage "davinci")
 # шаблон конфига копилота: пустой kompasMcpExe — exe ищется уровнем выше библиотеки
-$cfg = [ordered]@{ kompasMcpExe = ""; model = ""; workspace = ""; timeoutSec = 900; claudeCmd = "claude.cmd"; env = @{} }
+$cfg = [ordered]@{ kompasMcpExe = ""; provider = "claude"; baseUrl = ""; apiKey = ""; model = ""; workspace = ""; timeoutSec = 900; claudeCmd = "claude.cmd"; env = @{} }
 $cfg | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $stage "davinci\davinci.json")
 
 $zip = Join-Path $dist "$name-win64.zip"

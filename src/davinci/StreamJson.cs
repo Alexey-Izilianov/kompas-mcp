@@ -16,8 +16,11 @@ namespace KompasMcp.Davinci
     public string SessionId;       // есть в каждом событии
     public bool IsError;
     public string AssistantText;   // склейка text-блоков assistant-сообщения
-    public string ToolName;        // имя tool_use (mcp__kompas-mcp__ping)
+    public string Model;           // модель сообщения; "<synthetic>" — сообщение claude об ошибке API
+    public string ToolName;        // имя tool_use (mcp__kompas-mcp__ping); последнее в сообщении
+    public readonly List<string> ToolNames = new List<string>(); // все tool_use сообщения по порядку
     public string ToolResultText;  // текст tool_result (событие user)
+    public bool ToolResultIsError; // tool_result с is_error — инструмент вернул ошибку
     public string ResultText;      // финальный ответ (result)
     public double TotalCostUsd;
     public int NumTurns;
@@ -74,6 +77,7 @@ namespace KompasMcp.Davinci
       var msg = D(d, "message");
       if (msg != null)
       {
+        ev.Model = S(msg, "model");
         var blocks = L(msg, "content");
         if (blocks != null)
         {
@@ -90,9 +94,12 @@ namespace KompasMcp.Davinci
             else if (bt == "tool_use")
             {
               ev.ToolName = S(block, "name") ?? "";
+              ev.ToolNames.Add(ev.ToolName);
             }
             else if (bt == "tool_result")
             {
+              object err;
+              if (block.TryGetValue("is_error", out err) && err is bool && (bool)err) ev.ToolResultIsError = true;
               var rc = L(block, "content");
               if (rc != null)
               {

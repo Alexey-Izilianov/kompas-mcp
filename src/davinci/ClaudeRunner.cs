@@ -88,7 +88,7 @@ namespace KompasMcp.Davinci
     // Панельный процесс наследует окружение КОМПАСа, где ANTHROPIC_*/актуальный
     // PATH могут отсутствовать — claude тогда отвечает "Not logged in".
     // Доливаем окружение пользователя из реестра (HKCU + HKLM), своё не затирая.
-    static void MergeUserEnvironment(ProcessStartInfo psi)
+    internal static void MergeUserEnvironment(ProcessStartInfo psi)
     {
       try
       {
