@@ -1,9 +1,10 @@
-// Генерация mcp-config для claude (Этап 5): {"mcpServers":{"kompas-mcp":
-// {"command":<KompasMcp.exe>,"args":["--attach"]}}} в %TEMP%\kompas-davinci\.
-// Сервер в mcp-config всегда в attach-режиме: панель работает с КОМПАСом юзера.
+// mcp-config для claude в %TEMP%\kompas-davinci\: {"mcpServers":{"kompas-mcp":
+// {"command":<KompasMcp.exe>,"args":["--attach"]}}}. Сервер всегда в attach-режиме:
+// панель работает с КОМПАСом пользователя.
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using KompasMcp.JsonLib;
 
 namespace KompasMcp.Davinci
@@ -18,19 +19,14 @@ namespace KompasMcp.Davinci
       if (!File.Exists(exe))
         throw new ToolException("KompasMcp.exe не найден: " + exe);
 
-      var server = new Dictionary<string, object>();
-      server["command"] = exe;
-      server["args"] = new List<object> { "--attach" };
-
-      var servers = new Dictionary<string, object>();
-      servers["kompas-mcp"] = server;
-      var root = new Dictionary<string, object>();
-      root["mcpServers"] = servers;
+      var server = new Dictionary<string, object> { { "command", exe }, { "args", new List<object> { "--attach" } } };
+      var servers = new Dictionary<string, object> { { "kompas-mcp", server } };
+      var root = new Dictionary<string, object> { { "mcpServers", servers } };
 
       string dir = Path.Combine(Path.GetTempPath(), "kompas-davinci");
       Directory.CreateDirectory(dir);
       string path = Path.Combine(dir, "mcp-config.json");
-      File.WriteAllText(path, Json.Write(root), new System.Text.UTF8Encoding(false));
+      File.WriteAllText(path, Json.Write(root), new UTF8Encoding(false));
       Log.Write("mcp-config: " + path + " -> " + exe);
       return path;
     }

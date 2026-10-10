@@ -274,13 +274,10 @@ namespace KompasMcp.Ui
     public const string Send = "M12 19 V5 M5.5 11.5 L12 5 L18.5 11.5";
     public const string Stop = "M8 7 H16 A1 1 0 0 1 17 8 V16 A1 1 0 0 1 16 17 H8 A1 1 0 0 1 7 16 V8 A1 1 0 0 1 8 7 Z";
     public const string Attach = "M20 11.5 L12 19.5 A5 5 0 0 1 5 12.5 L13.5 4 A3.4 3.4 0 0 1 18.3 8.8 L10 17 A1.8 1.8 0 0 1 7.5 14.5 L15 7";
-    public const string Moon = "M20 14.5 A8 8 0 1 1 9.5 4 A6.5 6.5 0 0 0 20 14.5 Z";
-    public const string Sun = "M12 7.5 A4.5 4.5 0 1 1 11.99 7.5 Z M12 2 V4 M12 20 V22 M4.9 4.9 L6.3 6.3 M17.7 17.7 L19.1 19.1 M2 12 H4 M20 12 H22 M4.9 19.1 L6.3 17.7 M17.7 6.3 L19.1 4.9";
     public const string NewChat = "M12 4.5 H6.5 A2 2 0 0 0 4.5 6.5 V17.5 A2 2 0 0 0 6.5 19.5 H17.5 A2 2 0 0 0 19.5 17.5 V12 M17.8 3.7 A1.9 1.9 0 0 1 20.5 6.4 L12.5 14.4 L9 15.2 L9.8 11.7 Z";
     public const string ChevronRight = "M9.5 6.5 L15 12 L9.5 17.5";
     public const string ChevronDown = "M6.5 9.5 L12 15 L17.5 9.5";
     public const string Close = "M7 7 L17 17 M17 7 L7 17";
-    public const string Pin = "M8.5 4 H15.5 M10 4 V9.5 L7 14 H17 L14 9.5 V4 M12 14 V20.5";
     public const string Settings = "M4 7 H12.5 M17.5 7 H20 M15 4.8 A2.2 2.2 0 1 1 14.99 4.8 Z M4 17 H6.5 M11.5 17 H20 M9 14.8 A2.2 2.2 0 1 1 8.99 14.8 Z";
     public const string Back = "M14.5 6 L8.5 12 L14.5 18";
   }

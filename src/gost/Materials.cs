@@ -3,15 +3,13 @@ using System.Collections.Generic;
 
 namespace KompasMcp.Gost
 {
-  // Справочник материалов для SetMaterial/массы. Плотности — справочные, кг/м³.
-  // Пополнять по мере надобности; значения сверены с машиностроительными справочниками.
+  // Справочник материалов для массы детали; плотности справочные, кг/м³.
   public static class Materials
   {
     public class Mat
     {
       public string Name; public double Density; public string Note;
-      public string NameLower;      // для Find, считается один раз в Add
-      public string FirstWordLower; // первое слово имени, для Find
+      public string NameLower;      // для поиска без учёта регистра
     }
 
     static readonly List<Mat> mats = new List<Mat>();
@@ -47,9 +45,7 @@ namespace KompasMcp.Gost
 
     static void Add(string name, double density, string note)
     {
-      string lower = name.ToLowerInvariant();
-      mats.Add(new Mat { Name = name, Density = density, Note = note,
-        NameLower = lower, FirstWordLower = name.Split(' ')[0].ToLowerInvariant() });
+      mats.Add(new Mat { Name = name, Density = density, Note = note, NameLower = name.ToLowerInvariant() });
     }
 
     public static List<object> List()
@@ -68,10 +64,10 @@ namespace KompasMcp.Gost
 
     public static Mat Find(string name)
     {
-      string q = name.Trim().ToLowerInvariant();
+      string q = (name ?? "").Trim().ToLowerInvariant();
+      if (q.Length == 0) return null;
       foreach (Mat m in mats)
-        if (m.NameLower.StartsWith(q) || q.StartsWith(m.FirstWordLower) && m.NameLower.Contains(q))
-          return m;
+        if (m.NameLower.StartsWith(q)) return m;
       return null;
     }
   }

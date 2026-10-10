@@ -2,18 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Kompas6API5;
-using Kompas6Constants;
-using KompasAPI7;
-using KAPITypes;
-using KompasMcp;
 
 namespace KompasMcp.Tools
 {
-  // Спецификация ГОСТ 2.106-96, форма 1 — 2D-таблица на листе А4 (книжный). Нативный
-  // lt_DocSpc headless не годится (разделы не навешиваются, ksAddSpcDescription = 0), поэтому
-  // таблица рисуется примитивами. Графы 6/6/8/70/63/10/22 мм (x 20..205 листа), заголовок 15 мм
-  // под графой 26 рамки (левый верхний угол, 14 мм), строки 8 мм вниз до штампа. Разделы — в порядке ГОСТ 2.106; заголовок
-  // раздела подчёркнут, над ним и под ним по свободной строке; у документации нет позиции.
+  // Спецификация ГОСТ 2.106-96, форма 1 — таблица примитивами на А4 книжном: нативный lt_DocSpc
+  // в скрытом КОМПАСе не создаётся. Графы 6/6/8/70/63/10/22 мм (x 20..205 листа), заголовок 15 мм,
+  // строки 8 мм до штампа. Разделы — в порядке ГОСТ 2.106, заголовок раздела подчёркнут и отделён
+  // пустыми строками; у документации нет позиции.
   public static class ToolsSpc
   {
     static readonly string[] SecOrder = { "docs", "sborka", "detali", "standart", "prochie", "material" };
@@ -49,7 +44,7 @@ namespace KompasMcp.Tools
       public bool Title;
     }
 
-    static object SpecDrawing(Dictionary<string, object> a)
+    internal static object SpecDrawing(Dictionary<string, object> a)
     {
       object itemsObj;
       List<object> items = a.TryGetValue("items", out itemsObj) ? itemsObj as List<object> : null;
@@ -133,7 +128,7 @@ namespace KompasMcp.Tools
         Cell(d, x[6], Cols[6], yb, r.Note);
       }
 
-      FillStamp(name, ToolRegistry.GetStr(a, "designation", null));
+      DrawKit.Stamp(name, ToolRegistry.GetStr(a, "designation", null), null, 0);
       d.ksSaveDocument(Tools2D.DocPath);
       Dictionary<string, object> res = new Dictionary<string, object>
       {
@@ -186,30 +181,6 @@ namespace KompasMcp.Tools
         if (ToolRegistry.GetStr(it, "section", "detali") == sec) r.Add(it);
       }
       return r;
-    }
-
-    // Штамп через API-7 (идиома Tools2D.FillStamp)
-    static void FillStamp(string description, string partNumber)
-    {
-      try
-      {
-        IApplication app7 = KompasHost.App7;
-        IKompasDocument2D doc7 = (IKompasDocument2D)app7.ActiveDocument;
-        if (doc7 == null) return;
-        ILayoutSheet sheet = (ILayoutSheet)doc7.LayoutSheets.ItemByNumber[1];
-        IStamp stamp = (IStamp)sheet.Stamp;
-        if (partNumber != null && partNumber.Length > 0)
-          stamp.Text[Tools2D.StampDesignation].Str = partNumber;
-        if (description != null && description.Length > 0)
-          stamp.Text[Tools2D.StampName].Str = description;
-        stamp.Text[(int)ksStampEnum.ksStSheetNumber].Str = "1";
-        stamp.Text[(int)ksStampEnum.ksStNumberOfSheets].Str = "1";
-        stamp.Update();
-      }
-      catch (Exception e)
-      {
-        Log.Write("штамп спецификации: " + e.Message); // не критично
-      }
     }
   }
 }

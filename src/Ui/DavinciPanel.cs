@@ -59,8 +59,6 @@ namespace KompasMcp.Ui
     // null — индикатор показывает, что копилот не подключён.
     public static Func<bool, ServiceState> ClaudeStatusProvider;
 
-    public static bool IsOpen { get { lock (Gate) { return window != null; } } }
-
     // Открыть панель (идемпотентно). false — панель уже открыта в ДРУГОМ процессе.
     public static bool Start()
     {
@@ -142,14 +140,12 @@ namespace KompasMcp.Ui
     // ---- события сессии (из любого потока) ----
 
     public static bool Busy { set { Post(w => w.Busy = value); } }
-    public static void AppendUser(string text) { Post(w => w.AddUser(text, new string[0])); }
     public static void AppendAssistant(string text) { Post(w => w.AddAssistant(text)); }
     public static void ToolCall(string name) { Post(w => w.ToolCall(name)); }
     public static void ToolResult(bool isError) { Post(w => w.ToolResult(isError)); }
     public static void TurnDone(string summary) { Post(w => w.TurnDone(summary)); }
     public static void Notice(string text) { Post(w => w.AddNotice(text)); }
     public static void Error(string text) { Post(w => w.AddError(text)); }
-    public static void AppendLog(string text) { Notice(text); }
     public static void RefreshClaudeStatus() { Post(w => w.CheckClaude(false)); }
 
     // Блокирует до закрытия окна (панельный процесс живёт, пока открыта панель).

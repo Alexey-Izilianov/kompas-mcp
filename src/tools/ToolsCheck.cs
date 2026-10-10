@@ -56,10 +56,10 @@ namespace KompasMcp.Tools
 
     static object GearCheck(Dictionary<string, object> a)
     {
-      Strength.SpurResult r = Run(() => Strength.Spur(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
+      Strength.SpurResult r = Strength.Spur(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
         ToolRegistry.GetInt(a, "z2"), ToolRegistry.GetDbl(a, "width"), ToolRegistry.GetDbl(a, "torque"),
         ToolRegistry.GetDbl(a, "rpm"), ToolRegistry.GetDbl(a, "hb1", 270), ToolRegistry.GetDbl(a, "hb2", 250),
-        ToolRegistry.GetInt(a, "accuracy", 8), ToolRegistry.GetDbl(a, "ratio", 0)));
+        ToolRegistry.GetInt(a, "accuracy", 8), ToolRegistry.GetDbl(a, "ratio", 0));
       List<string> tech = new List<string>
       {
         "Передача проверена по ГОСТ 21354-87 при T1 = " + F(ToolRegistry.GetDbl(a, "torque")) + " Н·м, n1 = " +
@@ -93,11 +93,11 @@ namespace KompasMcp.Tools
 
     static object WormCheck(Dictionary<string, object> a)
     {
-      WormPair g = Run(() => WormGears.Worm(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
-        ToolRegistry.GetDbl(a, "q"), ToolRegistry.GetInt(a, "z2")));
-      Strength.WormResult r = Run(() => Strength.Worm(g, ToolRegistry.GetDbl(a, "torque"), ToolRegistry.GetDbl(a, "rpm"),
+      WormPair g = WormGears.Worm(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
+        ToolRegistry.GetDbl(a, "q"), ToolRegistry.GetInt(a, "z2"));
+      Strength.WormResult r = Strength.Worm(g, ToolRegistry.GetDbl(a, "torque"), ToolRegistry.GetDbl(a, "rpm"),
         ToolRegistry.GetDbl(a, "sigmaB", 275), ToolRegistry.GetDbl(a, "sigmaT", 200),
-        ToolRegistry.GetBool(a, "hardWorm", true), ToolRegistry.GetDbl(a, "ratio", 0)));
+        ToolRegistry.GetBool(a, "hardWorm", true), ToolRegistry.GetDbl(a, "ratio", 0));
       List<string> tech = new List<string>
       {
         "Передача проверена при T2 = " + F(ToolRegistry.GetDbl(a, "torque")) + " Н·м, n1 = " +
@@ -131,11 +131,10 @@ namespace KompasMcp.Tools
     {
       double? t = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
       double? gMod = a.ContainsKey("G") ? (double?)ToolRegistry.GetDbl(a, "G") : null;
-      Gost13765.Spring sp = Run(() => Gost13765.Calc(ToolRegistry.GetDbl(a, "wireDiameter"),
-        ToolRegistry.GetDbl(a, "coilDiameter"), ToolRegistry.GetInt(a, "n"), t, gMod));
-      s = sp;
-      return Run(() => Strength.Spring(sp, ToolRegistry.GetDbl(a, "F1"), ToolRegistry.GetDbl(a, "F2"),
-        ToolRegistry.GetDbl(a, "tauAllow", 785)));
+      s = Gost13765.Calc(ToolRegistry.GetDbl(a, "wireDiameter"), ToolRegistry.GetDbl(a, "coilDiameter"),
+        ToolRegistry.GetInt(a, "n"), t, gMod);
+      return Strength.Spring(s, ToolRegistry.GetDbl(a, "F1"), ToolRegistry.GetDbl(a, "F2"),
+        ToolRegistry.GetDbl(a, "tauAllow", 785));
     }
 
     internal static List<string> SpringTech(Strength.SpringResult r)
@@ -167,13 +166,6 @@ namespace KompasMcp.Tools
             r.Tau3 > r.TauAllow ? "напряжение при F3 выше допускаемого (увеличьте d или уменьшите D)" : null) },
         { "tech", SpringTech(r) }
       };
-    }
-
-    static T Run<T>(Func<T> f)
-    {
-      try { return f(); }
-      catch (ToolException) { throw; }
-      catch (Exception e) { throw new ToolException(e.Message); }
     }
 
     static string Verdict(params string[] issues)

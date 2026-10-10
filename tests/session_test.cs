@@ -1,4 +1,4 @@
-// Тест Этапа 5: DavinciConfig.Load (дефолты при отсутствии davinci.json),
+// DavinciConfig.Load (дефолты при отсутствии davinci.json),
 // McpConfig.Write (валидный JSON с kompas-mcp --attach, файл в %TEMP%).
 using System;
 using System.IO;

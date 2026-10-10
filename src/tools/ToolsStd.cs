@@ -40,25 +40,7 @@ namespace KompasMcp.Tools
 
           CreatePart(ToolRegistry.GetStr(a, "name", "Болт М" + d + "x" + L), a);
 
-          // головка: шестигранник z 0..K
-          double[] xs, ys;
-          Fasteners.HexVertices(b.E / 2.0, out xs, out ys);
-          Dictionary<string, object> hex = new Dictionary<string, object>();
-          hex["plane"] = "XOY";
-          List<object> segs = new List<object>();
-          for (int i = 0; i < 6; i++)
-          {
-            Dictionary<string, object> seg = new Dictionary<string, object>();
-            seg["type"] = "line";
-            seg["x1"] = Math.Round(xs[i], 4);
-            seg["y1"] = Math.Round(ys[i], 4);
-            seg["x2"] = Math.Round(xs[(i + 1) % 6], 4);
-            seg["y2"] = Math.Round(ys[(i + 1) % 6], 4);
-            segs.Add(seg);
-          }
-          hex["elements"] = segs;
-          Tools3D.Sketch(hex);
-          Tools3D.Extrude(Depth(b.K, baseOp: true), cut: false);
+          HexPrism(b.E, b.K);   // головка, z 0..K
 
           // стержень: эскиз на плоскости z=-L, выдавливание вверх
           Dictionary<string, object> shaft = CircleDict(d / 2.0);
@@ -67,7 +49,7 @@ namespace KompasMcp.Tools
           Tools3D.Extrude(Depth(L, baseOp: false), cut: false);
 
           SetSteel();
-          return Save(ToolRegistry.GetStr(a, "path", null), b.D, b.S, b.K, L);
+          return Save();
         }
         case "nut":
         {
@@ -76,29 +58,12 @@ namespace KompasMcp.Tools
           if (n == null) throw new ToolException("Нет номинала М" + d + " в таблице гаек (6..48)");
 
           CreatePart(ToolRegistry.GetStr(a, "name", "Гайка М" + d), a);
-          double[] xs, ys;
-          Fasteners.HexVertices(n.E / 2.0, out xs, out ys);
-          Dictionary<string, object> hex = new Dictionary<string, object>();
-          hex["plane"] = "XOY";
-          List<object> segs = new List<object>();
-          for (int i = 0; i < 6; i++)
-          {
-            Dictionary<string, object> seg = new Dictionary<string, object>();
-            seg["type"] = "line";
-            seg["x1"] = Math.Round(xs[i], 4);
-            seg["y1"] = Math.Round(ys[i], 4);
-            seg["x2"] = Math.Round(xs[(i + 1) % 6], 4);
-            seg["y2"] = Math.Round(ys[(i + 1) % 6], 4);
-            segs.Add(seg);
-          }
-          hex["elements"] = segs;
-          Tools3D.Sketch(hex);
-          Tools3D.Extrude(Depth(n.M, baseOp: true), cut: false);
-          // резьбовое отверстие: упрощение - номинальный диаметр
+          HexPrism(n.E, n.M);
+          // отверстие — по номинальному диаметру резьбы
           Tools3D.Sketch(CircleDict(n.D / 2.0));
           Tools3D.Extrude(ThroughDict(), cut: true);
           SetSteel();
-          return Save(ToolRegistry.GetStr(a, "path", null), n.D, n.S, n.M, 0);
+          return Save();
         }
         case "washer":
         {
@@ -113,7 +78,7 @@ namespace KompasMcp.Tools
           Tools3D.Sketch(ring);
           Tools3D.Extrude(Depth(w.S, baseOp: true), cut: false);
           SetSteel();
-          return Save(ToolRegistry.GetStr(a, "path", null), w.D1, w.D2, w.S, 0);
+          return Save();
         }
         case "bearing":
         {
@@ -148,7 +113,7 @@ namespace KompasMcp.Tools
               new[] { 0.0, 0.0 }, new[] { 0.0, -br.B }, 360);
           }
           SetSteel();
-          return Save(ToolRegistry.GetStr(a, "path", null), br.D, br.DOuter, br.B, 0);
+          return Save();
         }
         case "stud":
         {
@@ -165,8 +130,7 @@ namespace KompasMcp.Tools
           Tools3D.Sketch(CircleDict(d / 2.0));
           Tools3D.Extrude(Depth(L, baseOp: true), cut: false);
           SetSteel();
-          object saved = Save(ToolRegistry.GetStr(a, "path", null), d, d, L, L);
-          Dictionary<string, object> res = (Dictionary<string, object>)saved;
+          Dictionary<string, object> res = Save();
           res["gost"] = "Шпилька ГОСТ 22032-76 (b1=" + b1 + ", без резьбы - упрощение)";
           return res;
         }
@@ -182,8 +146,7 @@ namespace KompasMcp.Tools
           Tools3D.Sketch(CircleDict(d / 2.0));
           Tools3D.Extrude(Depth(L, baseOp: true), cut: false);
           SetSteel();
-          object saved = Save(ToolRegistry.GetStr(a, "path", null), d, d, L, L);
-          Dictionary<string, object> res = (Dictionary<string, object>)saved;
+          Dictionary<string, object> res = Save();
           res["gost"] = "Штифт цилиндрический ГОСТ 3128-70";
           return res;
         }
@@ -212,8 +175,7 @@ namespace KompasMcp.Tools
           ch["length2"] = L / 100.0; // по торцу (внутрь радиуса)
           Tools3D.EdgeOp(ch, false);
           SetSteel();
-          object saved = Save(ToolRegistry.GetStr(a, "path", null), d, d2, L, L);
-          Dictionary<string, object> res = (Dictionary<string, object>)saved;
+          Dictionary<string, object> res = Save();
           res["gost"] = "Штифт конический ГОСТ 24896-80 (1:50, d2=" + d2 + ")";
           return res;
         }
@@ -222,7 +184,7 @@ namespace KompasMcp.Tools
       }
     }
 
-    // ---- хелперы построения (через internal-методы Tools3D) ----
+    // ---- построение ----
 
     static Dictionary<string, object> Circle(double r)
     {
@@ -242,13 +204,9 @@ namespace KompasMcp.Tools
       return d;
     }
 
-    static Dictionary<string, object> Depth(double depth, bool baseOp, int dir = 1)
+    static Dictionary<string, object> Depth(double depth, bool baseOp)
     {
-      Dictionary<string, object> d = new Dictionary<string, object>();
-      d["depth"] = depth;
-      d["base"] = baseOp;
-      d["direction"] = dir;
-      return d;
+      return new Dictionary<string, object> { { "depth", depth }, { "base", baseOp } };
     }
 
     static Dictionary<string, object> ThroughDict()
@@ -275,15 +233,22 @@ namespace KompasMcp.Tools
       Tools3D.SetMaterialOp(m);
     }
 
-    static object Save(string path, double d1, double d2, double height, double length)
+    // путь задан при создании детали (CreatePart)
+    static Dictionary<string, object> Save()
     {
-      Dictionary<string, object> s = new Dictionary<string, object>();
-      if (path != null) s["path"] = path;
-      Tools3D.SavePart(s);
-      Dictionary<string, object> res = new Dictionary<string, object>();
-      res["saved"] = Tools3D.PartPath;
-      res["mass_kg"] = Tools3D.CurrentMass();
-      return res;
+      Tools3D.SavePart(new Dictionary<string, object>());
+      return new Dictionary<string, object> { { "saved", Tools3D.PartPath }, { "mass_kg", Tools3D.CurrentMass() } };
+    }
+
+    // Шестигранная призма (головка болта, гайка): вершины по диаметру описанной окружности e, z 0..height
+    static void HexPrism(double e, double height)
+    {
+      double[] xs, ys;
+      Fasteners.HexVertices(e / 2.0, out xs, out ys);
+      List<double[]> pts = new List<double[]>();
+      for (int i = 0; i < 6; i++) pts.Add(new[] { xs[i], ys[i] });
+      Tools3D.PolySketch(Tools3D.PlaneByName(Tools3D.GetPart(), "XOY"), pts);
+      Tools3D.Extrude(Depth(height, baseOp: true), cut: false);
     }
   }
 }

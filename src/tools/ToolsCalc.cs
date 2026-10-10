@@ -4,7 +4,7 @@ using KompasMcp.Gost;
 
 namespace KompasMcp.Tools
 {
-  // Расчётные tools: не требуют КОМПАСа, чистые ГОСТ-модули.
+  // Расчётные инструменты без КОМПАСа: материалы, допуски и посадки, сечения.
   public static class ToolsCalc
   {
     public static void Register()
@@ -73,20 +73,10 @@ namespace KompasMcp.Tools
     {
       string shape = ToolRegistry.GetStr(a, "shape", "circle");
       var res = new Dictionary<string, object>();
-      if (shape == "circle")
+      if (shape == "circle" || shape == "ring")
       {
         double r = ToolRegistry.GetDbl(a, "r");
-        double A = Math.PI * r * r;
-        double I = Math.PI * Math.Pow(r, 4) / 4.0;
-        res["area_mm2"] = Round3(A);
-        res["I_mm4"] = Round1(I);
-        res["W_mm3"] = Round1(I / r);
-        res["i_mm"] = Round3(Math.Sqrt(I / A));
-      }
-      else if (shape == "ring")
-      {
-        double r = ToolRegistry.GetDbl(a, "r");
-        double ri = ToolRegistry.GetDbl(a, "ri");
+        double ri = shape == "ring" ? ToolRegistry.GetDbl(a, "ri") : 0;
         if (ri >= r) throw new ToolException("ri должен быть меньше r");
         double A = Math.PI * (r * r - ri * ri);
         double I = Math.PI * (Math.Pow(r, 4) - Math.Pow(ri, 4)) / 4.0;

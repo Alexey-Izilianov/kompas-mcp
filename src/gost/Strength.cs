@@ -21,10 +21,10 @@ namespace KompasMcp.Gost
     public static SpurResult Spur(double m, int z1, int z2, double b, double t1Nm, double n1,
       double hb1, double hb2, int accuracy, double uTarget)
     {
-      if (m <= 0 || z1 < 6 || z2 < 6 || b <= 0) throw new Exception("Нужны m > 0, z ≥ 6, b > 0");
-      if (t1Nm <= 0 || n1 <= 0) throw new Exception("Нужны момент T1 > 0 и частота n1 > 0");
+      if (m <= 0 || z1 < 6 || z2 < 6 || b <= 0) throw new ToolException("Нужны m > 0, z ≥ 6, b > 0");
+      if (t1Nm <= 0 || n1 <= 0) throw new ToolException("Нужны момент T1 > 0 и частота n1 > 0");
       if (hb1 < 150 || hb1 > 350 || hb2 < 150 || hb2 > 350)
-        throw new Exception("Методика — для улучшенных сталей: твёрдость 150..350 НВ");
+        throw new ToolException("Методика — для улучшенных сталей: твёрдость 150..350 НВ");
       SpurResult r = new SpurResult();
       double d1 = m * z1;
       r.U = (double)z2 / z1;
@@ -82,8 +82,8 @@ namespace KompasMcp.Gost
     public static WormResult Worm(WormPair g, double t2Nm, double n1, double sigmaB, double sigmaT,
       bool hardWorm, double uTarget)
     {
-      if (t2Nm <= 0 || n1 <= 0) throw new Exception("Нужны момент на колесе T2 > 0 и частота червяка n1 > 0");
-      if (sigmaB <= 0 || sigmaT <= 0) throw new Exception("Нужны σв > 0 и σт > 0 материала венца");
+      if (t2Nm <= 0 || n1 <= 0) throw new ToolException("Нужны момент на колесе T2 > 0 и частота червяка n1 > 0");
+      if (sigmaB <= 0 || sigmaT <= 0) throw new ToolException("Нужны σв > 0 и σт > 0 материала венца");
       WormResult r = new WormResult();
       double gam = g.Gamma * Math.PI / 180.0;
       r.U = g.U;
@@ -126,11 +126,11 @@ namespace KompasMcp.Gost
     // H3 = (n1 − 0.5)·d, n1 = n + 2; F3 — сила при соприкосновении витков.
     public static SpringResult Spring(Gost13765.Spring s, double f1, double f2, double tauAllow)
     {
-      if (f1 < 0 || f2 <= f1) throw new Exception("Нужны 0 ≤ F1 < F2");
+      if (f1 < 0 || f2 <= f1) throw new ToolException("Нужны 0 ≤ F1 < F2");
       SpringResult r = new SpringResult { F1 = f1, F2 = f2, TauAllow = tauAllow };
       r.H3 = (s.TotalCoils - 0.5) * s.WireD;
       r.S3 = s.H0 - r.H3;
-      if (r.S3 <= 0) throw new Exception("Шаг слишком мал: витки соприкасаются в свободном состоянии");
+      if (r.S3 <= 0) throw new ToolException("Шаг слишком мал: витки соприкасаются в свободном состоянии");
       r.F3 = s.Stiffness * r.S3;
       r.S1 = f1 / s.Stiffness;
       r.S2 = f2 / s.Stiffness;

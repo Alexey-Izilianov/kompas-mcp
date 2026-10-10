@@ -1,4 +1,4 @@
-// Runner-тест без КОМПАСа (Этап 2): spawn claude -p через ClaudeRunner,
+// Runner-тест без КОМПАСа: запуск claude -p через ClaudeRunner,
 // ping через kompas-mcp, --resume, Stop (taskkill). Сборка: build_runner_test.ps1.
 using System;
 using System.Collections.Generic;
@@ -46,7 +46,7 @@ namespace KompasMcp.Davinci.Test
       lock (evs)
         foreach (StreamEvent e in evs)
         {
-          if (e.ToolName != null) saw = true;
+          if (e.ToolNames.Count > 0) saw = true;
           if (e.ToolResultText != null) toolResult = e.ToolResultText;
         }
       return saw;

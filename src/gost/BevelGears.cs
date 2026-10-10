@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace KompasMcp.Gost
 {
   // Ортогональная прямозубая коническая передача (Σ=90°), ГОСТ 19624-74.
-  // Упрощение: смещение xe=0, высота зуба h* = 2m + 0.2m (внешняя высота).
+  // Упрощение: смещение xe = 0, внешняя высота зуба 2.2·me (головка me, ножка 1.2·me).
   public class BevelWheel
   {
     public double Me;      // внешний окружной модуль
@@ -24,22 +24,20 @@ namespace KompasMcp.Gost
 
   public static class BevelGears
   {
-    // wheel=true для колеса (угол = 90° - delta1); вход delta — угол своего конуса
+    // deltaDeg — угол делительного конуса этого колеса (у парного — MateDelta)
     public static BevelWheel Wheel(double me, int z, double deltaDeg, double b)
     {
-      if (me <= 0 || me > 25) throw new Exception("Модуль me должен быть 0..25");
-      if (z < 8 || z > 200) throw new Exception("Число зубьев конического колеса 8..200");
-      if (deltaDeg <= 5 || deltaDeg >= 85) throw new Exception("Угол делительного конуса 5..85 (орто-передача)");
-      if (b < 0 || b > 0.5 * 1000) throw new Exception("Ширина венца должна быть 0..500");
+      if (me <= 0 || me > 25) throw new ToolException("Модуль me должен быть 0..25");
+      if (z < 8 || z > 200) throw new ToolException("Число зубьев конического колеса 8..200");
+      if (deltaDeg <= 5 || deltaDeg >= 85) throw new ToolException("Угол делительного конуса 5..85 (орто-передача)");
+      if (b < 0 || b > 500) throw new ToolException("Ширина венца должна быть 0..500");
 
       BevelWheel w = new BevelWheel();
       w.Me = me; w.Z = z; w.Delta = deltaDeg;
       w.De = me * z;
       double dRad = deltaDeg * Math.PI / 180.0;
       w.Ri = w.De / (2.0 * Math.Sin(dRad));
-      // внешняя высота головки/ножки (h_a*=1, c*=0.2, xe=0)
-      double hf = 1.2 * me;   // ножка
-      double ha = 1.0 * me;   // головка
+      double ha = me, hf = 1.2 * me;   // h_a* = 1, c* = 0.2
       w.Ha = ha; w.Hf = hf;
       // ГОСТ 2.405: dae по внешнему делительному + головка на внешнем торце
       w.Dae = w.De + 2.0 * ha * Math.Cos(dRad);
@@ -48,9 +46,9 @@ namespace KompasMcp.Gost
       double thetaF = Math.Atan(hf / w.Ri);
       w.ThetaF = thetaF * 180.0 / Math.PI;
       w.DeltaA = deltaDeg + thetaF * 180.0 / Math.PI;
-      // ширина венца: дано или 0.3R (ГОСТ 19624: b <= 0.3R, округлять — не делаем)
+      // ширина венца: задана или 0.3·Re (ГОСТ 19624), не больше 0.35·Re — иначе зуб уходит к вершине
       if (b <= 0) b = 0.3 * w.Ri;
-      if (b > 0.35 * w.Ri) b = 0.35 * w.Ri; // жёсткое ограничение, чтобы не выйти за конус
+      if (b > 0.35 * w.Ri) b = 0.35 * w.Ri;
       w.B = b;
       // делительный диаметр внутреннего торца: de - 2b*sin(delta)
       w.Di = w.De - 2.0 * b * Math.Sin(dRad);
@@ -63,6 +61,7 @@ namespace KompasMcp.Gost
     // Осевой профиль заготовки (общий для чертежа и 3D-модели)
     public static BevelBlank Blank(double me, int z, double deltaDeg, double width, double bore, double hubL)
     {
+      if (bore <= 0) throw new ToolException("Нужен bore > 0");
       BevelWheel w = Wheel(me, z, deltaDeg, width);
       double d = deltaDeg * Math.PI / 180.0;
       double[] ug = { Math.Sin(d), Math.Cos(d) }, ub = { Math.Cos(d), -Math.Sin(d) };
@@ -77,12 +76,11 @@ namespace KompasMcp.Gost
       b.Ti = pt(k * re, k * w.Ha);
       b.Fi = pt(k * re, -k * w.Hf);
       b.Gi = pt(k * re, -k * w.Hf - rim);
-      if (b.Rb <= 0) throw new Exception("Нужен bore > 0");
       if (b.Ti[1] < 1.0)
-        throw new Exception("Угол делительного конуса слишком велик для z=" + z + ": зубья заходят за вершину конуса");
+        throw new ToolException("Угол делительного конуса слишком велик для z=" + z + ": зубья заходят за вершину конуса");
       double rMin = Math.Min(b.Ge[0], b.Gi[0]);
       if (b.Rb > rMin - 1.0)
-        throw new Exception("Отверстие не помещается: наибольший bore " + (2 * (rMin - 1.0)).ToString("0.##"));
+        throw new ToolException("Отверстие не помещается: наибольший bore " + (2 * (rMin - 1.0)).ToString("0.##"));
       b.Rh = Math.Min(0.8 * bore, b.Ge[0] - me);
       if (b.Rh < b.Rb + 1.0) b.HubL = 0;
       return b;
@@ -140,10 +138,10 @@ namespace KompasMcp.Gost
   {
     public static WormPair Worm(double m, int z1, double q, int z2)
     {
-      if (m <= 0 || m > 20) throw new Exception("Модуль m должен быть 0..20");
-      if (z1 < 1 || z1 > 4) throw new Exception("Число заходов z1 = 1..4");
-      if (q < 6 || q > 25) throw new Exception("Коэффициент диаметра q = 6..25");
-      if (z2 < 20 || z2 > 400) throw new Exception("Число зубьев колеса z2 = 20..400");
+      if (m <= 0 || m > 20) throw new ToolException("Модуль m должен быть 0..20");
+      if (z1 < 1 || z1 > 4) throw new ToolException("Число заходов z1 = 1..4");
+      if (q < 6 || q > 25) throw new ToolException("Коэффициент диаметра q = 6..25");
+      if (z2 < 20 || z2 > 400) throw new ToolException("Число зубьев колеса z2 = 20..400");
 
       WormPair w = new WormPair();
       w.M = m; w.Z1 = z1; w.Q = q; w.Z2 = z2;

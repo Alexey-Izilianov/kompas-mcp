@@ -203,22 +203,15 @@ namespace KompasMcp.JsonLib
       WriteStr(o.ToString(), sb);
     }
 
-    // Спецсимволы, встречающиеся в реальных текстах ответов (остальные управляющие — по c < 0x20)
-    static readonly char[] jsonEscapes = { '"', '\\', '\n', '\r', '\t', '\b', '\f' };
-
     static void WriteStr(string s, StringBuilder sb)
     {
-      // быстрый путь: строка без спецсимволов добавляется целиком
-      if (s.IndexOfAny(jsonEscapes) < 0)
+      // быстрый путь: строка без кавычек, обратных слэшей и управляющих символов — целиком
+      int j = 0;
+      while (j < s.Length && s[j] != '"' && s[j] != '\\' && s[j] >= 0x20) j++;
+      if (j == s.Length)
       {
-        bool ctrl = false;
-        for (int j = 0; j < s.Length; j++)
-          if (s[j] < 0x20) { ctrl = true; break; }
-        if (!ctrl)
-        {
-          sb.Append('"').Append(s).Append('"');
-          return;
-        }
+        sb.Append('"').Append(s).Append('"');
+        return;
       }
       sb.Append('"');
       foreach (char c in s)

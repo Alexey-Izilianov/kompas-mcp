@@ -40,6 +40,7 @@ namespace KompasMcp
       In("3D-модели конических и червячных передач", Tools.ToolsGear3D.Register);
       In("Проверочные расчёты по ГОСТ", Tools.ToolsCheck.Register);
       In("Сборочный чертёж", Tools.ToolsAsmDrawing.Register);
+      In("Чертёж по модели", Tools.ToolsPartDrawing.Register);
     }
 
     static void In(string name, Action register)
@@ -66,9 +67,10 @@ namespace KompasMcp
       {
         throw new Exception("Битая inputSchema у tool '" + name + "': " + e.Message + " | схема: " + schemaJson);
       }
+      if (toolIndex.ContainsKey(name)) throw new Exception("Повторная регистрация tool '" + name + "'");
       var def = new ToolDef { Name = name, Description = description, SchemaJson = canonical, Section = section, Handler = handler };
       tools.Add(def);
-      if (!toolIndex.ContainsKey(name)) toolIndex[name] = def; // первое имя выигрывает, как и в линейном Find
+      toolIndex[name] = def;
     }
 
     public static ToolDef Find(string name)
@@ -111,6 +113,9 @@ namespace KompasMcp
       return ToDbl(key, v);
     }
 
+    // Число из элемента массива (точки, координаты в списках)
+    public static double Number(object v) { return ToDbl("элемент массива", v); }
+
     static double ToDbl(string key, object v)
     {
       if (v is double) return (double)v;
@@ -131,15 +136,14 @@ namespace KompasMcp
     {
       object v;
       if (a == null || !a.TryGetValue(key, out v) || v == null) return def;
-      return (int)Math.Round(GetDbl(a, key));
+      return (int)Math.Round(ToDbl(key, v));
     }
 
     public static bool GetBool(Dictionary<string, object> a, string key, bool def)
     {
       object v;
       if (a == null || !a.TryGetValue(key, out v) || v == null) return def;
-      if (v is bool) return (bool)v;
-      return GetDbl(a, key) != 0;
+      return v is bool ? (bool)v : ToDbl(key, v) != 0;
     }
   }
 }

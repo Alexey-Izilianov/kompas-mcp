@@ -17,7 +17,6 @@ if (-not (Test-Path (Join-Path $libDir "KompasLibrary.dll"))) { throw "interop K
 # 1) C# -> IL-DLL
 $out = Join-Path $dir "DavinciNative.dll"
 & $csc -nologo -codepage:65001 -platform:x64 -target:library -optimize+ -out:$out `
-  "-r:$(Join-Path $libDir 'KompasLibrary.dll')" `
   "-r:$(Join-Path $libDir 'Kompas6API5.dll')" `
   (Join-Path $dir "src\DavinciLib.cs") (Join-Path $dir "src\DavinciNative.cs")
 if ($LASTEXITCODE -ne 0) { throw "csc failed: $LASTEXITCODE" }

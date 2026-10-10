@@ -1,7 +1,6 @@
-// Спавн claude -p (stream-json) и разбор потока. Сообщение — через stdin
-// (не argv: кириллица/кавычки). Стоп — taskkill /T /F (Process.Kill(true)
-// в .NET 4 нет; /T обязательно — иначе останется сирота kompas-mcp).
-// Форма флагов верифицирована на Этапе 0.
+// Запуск claude -p (stream-json) и разбор потока. Сообщение — через stdin UTF-8 байтами (в argv
+// ломаются кириллица и кавычки). Стоп — taskkill /T /F всего дерева: в .NET 4 нет Process.Kill(true),
+// а без /T остался бы дочерний kompas-mcp.
 using System;
 using System.Diagnostics;
 using System.Text;
@@ -15,7 +14,7 @@ namespace KompasMcp.Davinci
     public string ClaudeCmd = "claude.cmd";  // резолвится через PATH (cmd /c)
     public string McpConfigPath;             // обязателен
     public string Workspace;                 // рабочий каталог сессии
-    public string SystemPrompt;              // --append-system-prompt (Этап 5)
+    public string SystemPrompt;              // --append-system-prompt
     public string AllowedTools = "mcp__kompas-mcp";
     public string Model;                     // --model ("" = по умолчанию)
     public bool Restricted = true;
@@ -35,10 +34,8 @@ namespace KompasMcp.Davinci
     public bool Running { get { lock (gate) { return proc != null && !proc.HasExited; } } }
     public int Pid { get { lock (gate) { return proc == null ? 0 : proc.Id; } } }
 
-    // Обработчики вызываются из фоновых потоков чтения — UI-поток
-    // синхронизирует сам (Control.BeginInvoke в панели, Этап 4).
+    // Вызываются из фоновых потоков чтения; в поток окна маршалит получатель.
     public event Action<StreamEvent> OnEvent;
-    public event Action<string> OnStderr;
     public event Action<Exception> OnError;
     public event Action OnExit;
 
@@ -64,12 +61,8 @@ namespace KompasMcp.Davinci
       psi.RedirectStandardOutput = true;
       psi.RedirectStandardError = true;
       psi.CreateNoWindow = true;
-      psi.StandardOutputEncoding = new System.Text.UTF8Encoding(false);
+      psi.StandardOutputEncoding = new UTF8Encoding(false);
       psi.StandardErrorEncoding = new UTF8Encoding(false);
-      // Кодировку stdin задаём вручную: ProcessStartInfo.StandardInputEncoding
-      // в .NET Framework нет, StreamWriter берёт кодировку консоли (OEM) и
-      // кириллица доходит до модели битой (CP1251/CP866-микс) — поэтому
-      // WriteStdin пишет UTF-8 байты напрямую в BaseStream.
       if (!string.IsNullOrEmpty(o.Workspace)) psi.WorkingDirectory = o.Workspace;
       MergeUserEnvironment(psi);
       if (o.Env != null)
@@ -92,8 +85,9 @@ namespace KompasMcp.Davinci
     {
       try
       {
-        MergeRegKey(psi, Registry.CurrentUser, "Environment");
+        // как в Windows: переменные пользователя перекрывают машинные, PATH складывается
         MergeRegKey(psi, Registry.LocalMachine, "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
+        MergeRegKey(psi, Registry.CurrentUser, "Environment");
       }
       catch (Exception e) { Log.Error("runner env", e); }
     }
@@ -117,7 +111,7 @@ namespace KompasMcp.Davinci
 
     string BuildArgs(ClaudeRunnerOptions o, string resumeSessionId)
     {
-      var b = new System.Text.StringBuilder();
+      var b = new StringBuilder();
       b.Append("--verbose --output-format stream-json --strict-mcp-config");
       b.Append(" --mcp-config \"").Append(o.McpConfigPath).Append("\"");
       if (!string.IsNullOrEmpty(o.AllowedTools))
@@ -138,7 +132,7 @@ namespace KompasMcp.Davinci
       try
       {
         string message = (string)arg;
-        // UTF-8 байтами напрямую: кодировка StreamWriter = кодировка консоли (OEM)
+        // UTF-8 байтами: StandardInputEncoding в .NET Framework нет, а StreamWriter пишет в OEM
         byte[] bytes = new UTF8Encoding(false).GetBytes(message);
         proc.StandardInput.BaseStream.Write(bytes, 0, bytes.Length);
         proc.StandardInput.BaseStream.Flush();
@@ -155,14 +149,15 @@ namespace KompasMcp.Davinci
         while ((line = proc.StandardOutput.ReadLine()) != null)
         {
           StreamEvent ev = StreamEvent.Parse(line);
-          // thinking_tokens — спам по ~10 строк на оборот, в лог не пишем
           if (ev == null)
           {
-            Log.Write("runner: unparsed " + (line.Length > 300 ? line.Substring(0, 300) : line));
+            Log.Write("runner: unparsed " + Clip(line, 300));
             continue;
           }
-          if (ev.Type == "system" && ev.Subtype == "thinking_tokens") continue;
-          Log.Write("runner: event " + (line.Length > 300 ? line.Substring(0, 300) : line));
+          if (ev.Type == "system" && ev.Subtype == "thinking_tokens") continue;   // ~10 строк на оборот
+          // итог и ошибки — целиком: в них причина сбоя API
+          bool full = ev.Type == "result" || ev.IsError || ev.Model == "<synthetic>";
+          Log.Write("runner: event " + (full ? line : Clip(line, 300)));
           if (ev.SessionId != null) SessionId = ev.SessionId;
           if (OnEvent != null) OnEvent(ev);
         }
@@ -178,11 +173,7 @@ namespace KompasMcp.Davinci
         string line;
         while ((line = proc.StandardError.ReadLine()) != null)
         {
-          if (line.Length > 0)
-          {
-            Log.Write("runner: stderr " + line);
-            if (OnStderr != null) OnStderr(line);
-          }
+          if (line.Length > 0) Log.Write("runner: stderr " + line);   // в панель шум не тащим
         }
       }
       catch { }
@@ -206,8 +197,12 @@ namespace KompasMcp.Davinci
 
     public bool WaitForExit(int ms)
     {
-      lock (gate) return proc == null || proc.WaitForExit(ms);
+      Process p;
+      lock (gate) p = proc;
+      return p == null || p.WaitForExit(ms);
     }
+
+    static string Clip(string s, int n) { return s.Length > n ? s.Substring(0, n) : s; }
 
     void FireError(Exception e)
     {

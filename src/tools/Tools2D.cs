@@ -10,16 +10,11 @@ using KompasMcp.Gost;
 
 namespace KompasMcp.Tools
 {
-  // 2D-чертёжный домен. Идиомы — из проверенного flange_draw.cs:
-  //  - lt_DocSheetStandart + ksSheetPar(shtType=1, layoutName="") + ksStandartSheet(direct=true = горизонтально);
-  //    макет «Первый лист. Форма 1» с рамкой+штампом создаётся автоматически;
-  //  - ksCreateSheetView(x=0,y=0) → координаты геометрии = мм листа;
-  //  - размеры: ksLDimParam/ksRDimParam, tPar.Init(false)+_AUTONOMINAL, sign=1 = ⌀,
-  //    префикс через _PREFIX + строка в GetTextArr() (в одну строку со значением);
-  //  - диаметральный размер = ksDiamDimension(ksRDimParam!), НЕ ksADimParam;
-  //  - штриховка ksHatch: контур чертится дважды (до блока style 1 и внутри блока style 2), затем ksEndObj;
-  //    контур обязан быть замкнут;
-  //  - штамп через API-7 IStamp.Text[ksStampEnum], затем stamp.Update().
+  // 2D-чертёж. Лист: lt_DocSheetStandart + ksStandartSheet (direct = альбомный) — макет «Первый лист,
+  // форма 1» с рамкой и штампом создаётся сам; листовой вид в (0,0) — координаты в мм листа.
+  // Размеры: tPar.Init(false) + _AUTONOMINAL, sign 1 = ⌀, 3 = R, префикс — _PREFIX + GetTextArr;
+  // диаметральный размер — ksDiamDimension с ksRDimParam. Штриховка: контур рисуется до блока
+  // (обводка) и повторно внутри ksHatch…ksEndObj (граница). Штамп — API-7 IStamp, затем Update().
   public static class Tools2D
   {
     static ksDocument2D doc;        // текущий чертёж
@@ -54,23 +49,8 @@ namespace KompasMcp.Tools
 ""scale"":{""type"":""number"",""description"":""По умолчанию 1""},
 ""angle"":{""type"":""number"",""description"":""По умолчанию 0""},
 ""name"":{""type"":""string""}}}",
-        a =>
-        {
-          ksDocument2D d = GetDoc();
-          KompasObject kompas = KompasHost.Kompas;
-          ksViewParam par = (ksViewParam)kompas.GetParamStruct((short)StructType2DEnum.ko_ViewParam);
-          par.Init();
-          par.x = ToolRegistry.GetDbl(a, "x", 0);
-          par.y = ToolRegistry.GetDbl(a, "y", 0);
-          par.scale_ = ToolRegistry.GetDbl(a, "scale", 1);
-          par.angle = ToolRegistry.GetDbl(a, "angle", 0);
-          par.state = (short)ldefin2d.stACTIVE;
-          par.name = ToolRegistry.GetStr(a, "name", "Вид");
-          int vnum = 0;
-          d.ksCreateSheetView(par, ref vnum);
-          viewNum = vnum;
-          return Id("view", vnum);
-        });
+        a => Id("view", MakeView(ToolRegistry.GetDbl(a, "x", 0), ToolRegistry.GetDbl(a, "y", 0),
+          ToolRegistry.GetDbl(a, "scale", 1), ToolRegistry.GetStr(a, "name", "Вид"), ToolRegistry.GetDbl(a, "angle", 0))));
 
       ToolRegistry.Add("line",
         "Отрезок. style: 1=основная, 2=тонкая, 3=осевая.",
@@ -237,7 +217,7 @@ namespace KompasMcp.Tools
         {
           string p = ToolRegistry.GetStr(a, "path", null);
           if (p == null) p = docPath;
-          p = AbsPath(p);
+          p = Paths.Abs(p);
           bool ok = GetDoc().ksSaveDocument(p);
           if (!ok) throw new ToolException("ksSaveDocument вернул false: " + p);
           docPath = p;
@@ -270,6 +250,7 @@ namespace KompasMcp.Tools
 ""mode"":{""type"":""string"",""enum"":[""chain"",""base""],
 ""description"":""chain (по умолчанию) | base""},
 ""offset"":{""type"":""number"",""description"":""По умолчанию -15""},
+""vertical"":{""type"":""boolean"",""description"":""Вертикальные размеры (по умолчанию — по расположению точек)""},
 ""cascade"":{""type"":""boolean"",""description"":""Для base: ступенчатые размеры (по умолчанию false)""},
 ""step"":{""type"":""number"",""description"":""Шаг каскада, по умолчанию 8""},
 ""sign"":{""type"":""integer"",""description"":""1 = знак диаметра ⌀""},
@@ -289,13 +270,14 @@ namespace KompasMcp.Tools
             string baseName = docPath ?? Paths.Out("drawing.cdw");
             p = Path.ChangeExtension(baseName, ".dxf");
           }
-          bool ok = GetDoc().ksSaveToDXF(AbsPath(p));
+          p = Paths.Abs(p);
+          bool ok = GetDoc().ksSaveToDXF(p);
           if (!ok) throw new ToolException("ksSaveToDXF вернул false (возможно, экспорт запрещён Компас-Защита): " + p);
           return new Dictionary<string, object> { { "dxf", p } };
         });
 
       ToolRegistry.Add("gear_drawing",
-        "2D-чертёж цилиндрического прямозубого колеса по ГОСТ 2.402/2.403: осевой разрез (венец, диск с выточками, ступица), размеры (диаметры вершин, ступицы, отверстия, ширина венца), таблица параметров, технические требования, штамп. Геометрия ГОСТ 16532, x=0. web=0 — сплошное колесо (hubD/hubL игнорируются).",
+        "2D-чертёж цилиндрического прямозубого колеса по ГОСТ 2.402/2.403: осевой разрез (обод толщиной 2.5m под впадинами, диск с выточками, ступица; фаски вершин 0.5m×45° и отверстия по ГОСТ 10948, рёбра фасок в отверстии), размеры (диаметры вершин, ступицы, отверстия, ширина венца), таблица параметров, технические требования, штамп. Геометрия ГОСТ 16532, x=0. web=0 — сплошное колесо (hubD/hubL игнорируются).",
         @"{""type"":""object"",""properties"":{
 ""m"":{""type"":""number"",""description"":""Модуль""},
 ""z"":{""type"":""integer"",""description"":""Число зубьев""},
@@ -316,17 +298,17 @@ namespace KompasMcp.Tools
       ToolRegistry.Add("close_drawing",
         "Закрыть текущий чертёж (сохраняйте save_document заранее).",
         "{}",
-        a =>
-        {
-          bool ok = GetDoc().ksCloseDocument();
-          doc = null;
-          docPath = null;
-          viewNum = 0;
-          return new Dictionary<string, object> { { "closed", ok } };
-        });
+        a => new Dictionary<string, object> { { "closed", CloseDrawing() } });
     }
 
     // ---- состояние ----
+
+    internal static bool CloseDrawing()
+    {
+      bool ok = GetDoc().ksCloseDocument();
+      Reset();
+      return ok;
+    }
 
     public static ksDocument2D GetDoc()
     {
@@ -335,12 +317,6 @@ namespace KompasMcp.Tools
     }
 
     public static string DocPath { get { return docPath; } }
-
-    // КОМПАС резолвит относительные пути от своего cwd, сервер — от своего; единая точка правды — абсолютные пути.
-    static string AbsPath(string p)
-    {
-      return Paths.Abs(p);
-    }
 
     static Dictionary<string, object> Id(string type, int obj)
     {
@@ -359,8 +335,7 @@ namespace KompasMcp.Tools
 
       ksDocumentParam docPar = (ksDocumentParam)kompas.GetParamStruct((short)StructType2DEnum.ko_DocumentParam);
       if (docPar == null) throw new ToolException("ko_DocumentParam == null");
-      // КОМПАС резолвит относительный путь от своего cwd (у COM-сервера он свой) — пути всегда абсолютные
-      docPath = AbsPath(ToolRegistry.GetStr(a, "path", Paths.Out("drawing.cdw")));
+      docPath = Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("drawing.cdw")));
       string dir = Path.GetDirectoryName(docPath);
       if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
       docPar.fileName = docPath;
@@ -393,7 +368,6 @@ namespace KompasMcp.Tools
       return new Dictionary<string, object> { { "path", docPath }, { "format", fmt }, { "viewNumber", vnum } };
     }
 
-    // А3=3 проверено на flange_draw.cs; остальные коды (A0..A4) уточнить при первом прогоне render_png.
     static int FormatCode(string fmt)
     {
       switch (fmt)
@@ -426,16 +400,6 @@ namespace KompasMcp.Tools
         made++;
       }
       return new Dictionary<string, object> { { "segments", made } };
-    }
-
-    static double ToDbl(object o)
-    {
-      if (o is double) return (double)o;
-      if (o is int) return (int)o;
-      if (o is long) return (long)o;
-      double d;
-      if (double.TryParse(o.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) return d;
-      throw new ToolException("Не число: " + o);
     }
 
     // ---- размеры ----
@@ -721,28 +685,12 @@ namespace KompasMcp.Tools
       bool casc = ToolRegistry.GetBool(a, "cascade", false);
       double step = ToolRegistry.GetDbl(a, "step", 8);
 
-      // одна ось: либо все y равны (горизонтальные размеры, ang=0, смещение по dy),
-      // либо все x равны (вертикальные, ang=90, смещение по dx)
-      bool vertical = ToolRegistry.GetBool(a, "vertical", false);
-      bool horizontal = ToolRegistry.GetBool(a, "horizontal", false);
-      if (!vertical && !horizontal)
-      {
-        double y0 = pts[0][1];
-        vertical = true;
-        foreach (double[] p in pts)
-          if (Math.Abs(p[0] - pts[0][0]) > 1e-6) vertical = false;
-        if (!vertical)
-        {
-          horizontal = true;
-          foreach (double[] p in pts)
-            if (Math.Abs(p[1] - y0) > 1e-6) { horizontal = false; break; }
-        }
-        if (!vertical && !horizontal)
-          throw new ToolException("Точки не лежат на одной горизонтальной или вертикальной оси; укажите vertical=true/false явно или выровняйте точки");
-      }
-      else if (vertical && horizontal)
-        throw new ToolException("vertical и horizontal взаимоисключающи");
-      double ang = ToolRegistry.GetDbl(a, "ang", vertical ? 90 : 0);
+      // ось группы: все x равны — вертикальные размеры, все y равны — горизонтальные
+      bool vertical;
+      if (a.ContainsKey("vertical")) vertical = ToolRegistry.GetBool(a, "vertical", false);
+      else if (pts.TrueForAll(p => Math.Abs(p[0] - pts[0][0]) < 1e-6)) vertical = true;
+      else if (pts.TrueForAll(p => Math.Abs(p[1] - pts[0][1]) < 1e-6)) vertical = false;
+      else throw new ToolException("Точки не лежат на одной горизонтальной или вертикальной прямой; выровняйте их или задайте vertical");
 
       int m = pts.Count - 1;
       for (int i = 0; i < m; i++)
@@ -751,12 +699,12 @@ namespace KompasMcp.Tools
         double[] p2 = pts[i + 1];
         double o = off;
         if (mode == "base" && casc) o = off - i * step;
-        Dictionary<string, object> args = new Dictionary<string, object>();
-        args["x1"] = p1[0]; args["y1"] = p1[1];
-        args["x2"] = p2[0]; args["y2"] = p2[1];
-        if (horizontal) { args["dx"] = o; args["dy"] = 0.0; }
-        else { args["dx"] = 0.0; args["dy"] = o; }
-        if (a.ContainsKey("ang")) args["ang"] = ToolRegistry.GetDbl(a, "ang");
+        // смещение размерной линии — по нормали: у вертикального размера по x, у горизонтального по y
+        Dictionary<string, object> args = new Dictionary<string, object>
+        {
+          { "x1", p1[0] }, { "y1", p1[1] }, { "x2", p2[0] }, { "y2", p2[1] },
+          { "ang", vertical ? 90.0 : 0.0 }, { "dx", vertical ? o : 0.0 }, { "dy", vertical ? 0.0 : o }
+        };
         if (a.ContainsKey("prefix")) args["prefix"] = ToolRegistry.GetStr(a, "prefix");
         if (ToolRegistry.GetBool(a, "sign", false)) args["sign"] = 1;
         if (a.ContainsKey("textPos")) args["textPos"] = ToolRegistry.GetDbl(a, "textPos");
@@ -776,7 +724,7 @@ namespace KompasMcp.Tools
       {
         List<object> pair = o as List<object>;
         if (pair == null || pair.Count != 2) throw new ToolException("Точка должна быть парой [x,y]");
-        res.Add(new double[] { ToDbl(pair[0]), ToDbl(pair[1]) });
+        res.Add(new double[] { ToolRegistry.Number(pair[0]), ToolRegistry.Number(pair[1]) });
       }
       return res;
     }
@@ -788,79 +736,82 @@ namespace KompasMcp.Tools
       return v.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',');
     }
 
-    // Штриховка прямоугольной области отдельным блоком ksHatch (надёжно: тривиально замкнутый контур).
-    // Без обводки (outline=false): обводку сечения рисует вызывающий.
-    internal static void HatchRect(double x0, double x1, double y0, double y1, bool mirror)
+    // Прямоугольник с фасками 45°: cb — у обоих нижних углов, ct — у верхних (0 — без фаски).
+    static List<double[]> Chamfered(double x0, double x1, double y0, double y1, double cb, double ct)
     {
-      double ya = mirror ? -y1 : y0, yb = mirror ? -y0 : y1;
-      List<object> segs = new List<object>();
-      double[] xs = new double[] { x0, x1, x1, x0 };
-      double[] ys = new double[] { ya, ya, yb, yb };
-      for (int i = 0; i < 4; i++)
+      var p = new List<double[]>();
+      Action<double, double> add = (x, y) =>
       {
-        Dictionary<string, object> s = new Dictionary<string, object>();
-        s["type"] = "line";
-        s["x1"] = xs[i]; s["y1"] = ys[i];
-        s["x2"] = xs[(i + 1) % 4]; s["y2"] = ys[(i + 1) % 4];
-        segs.Add(s);
-      }
-      Dictionary<string, object> a = new Dictionary<string, object>();
-      a["contour"] = segs;
-      a["angle"] = 45.0; a["step"] = 2.5;
-      a["x0"] = (x0 + x1) / 2.0; a["y0"] = (ya + yb) / 2.0;
-      a["outline"] = false;
-      Hatch(a);
+        double[] last = p.Count > 0 ? p[p.Count - 1] : null;
+        if (last == null || Math.Abs(last[0] - x) > 1e-9 || Math.Abs(last[1] - y) > 1e-9) p.Add(new[] { x, y });
+      };
+      add(x0 + cb, y0); add(x1 - cb, y0); add(x1, y0 + cb);
+      add(x1, y1 - ct); add(x1 - ct, y1); add(x0 + ct, y1);
+      add(x0, y1 - ct); add(x0, y0 + cb);
+      return p;
     }
 
-    // Внешний контур верхней половины сечения (y — радиус, x — вдоль оси; замкнутый цикл точек).
-    // Полости между диском и венцом открыты вбок — контур обходит их стены. mirror — нижняя половина.
-    static List<object> SectionContour(double xh0, double xh1, double xr0, double xr1,
-      double xw0, double xw1, double ybore, double yhub, double ydf, double yra, bool disc, bool mirror)
+    // Штриховка блока сечения отдельным ksHatch с зазором 0.5 мм от контура: иначе заливка перетекает
+    // через примыкающие углы соседних блоков. Фаска при отступе g укорачивается на g·(2−√2).
+    static void HatchBlock(double x0, double x1, double y0, double y1, double cb, double ct, bool mirror)
     {
-      double[][] p = disc
-        ? new double[][]
-          {
-            new double[] { xh0, ybore }, new double[] { xh1, ybore },
-            new double[] { xh1, yhub },  new double[] { xw1, yhub },
-            new double[] { xw1, ydf },   new double[] { xr1, ydf },
-            new double[] { xr1, yra },   new double[] { xr0, yra },
-            new double[] { xr0, ydf },   new double[] { xw0, ydf },
-            new double[] { xw0, yhub },  new double[] { xh0, yhub }
-          }
-        : new double[][]
-          {
-            new double[] { xh0, ybore }, new double[] { xh1, ybore },
-            new double[] { xh1, yra },   new double[] { xh0, yra }
-          };
-      List<object> segs = new List<object>();
-      for (int i = 0; i < p.Length; i++)
+      const double g = 0.5, shrink = g * 0.5858;
+      DrawKit.Hatch(Chamfered(x0 + g, x1 - g, y0 + g, y1 - g, Math.Max(0, cb - shrink), Math.Max(0, ct - shrink)), mirror);
+    }
+
+    // Внешний контур верхней половины осевого разреза колеса (y — радиус, x — вдоль оси).
+    // Полости между диском и ободом открыты вбок — контур обходит их стены. cBore — фаски отверстия,
+    // cTip — фаски вершин зубьев. mirror — нижняя половина.
+    static List<object> SectionContour(double xh0, double xh1, double xr0, double xr1, double xw0, double xw1,
+      double ybore, double yhub, double yrim, double yra, double cBore, double cTip, bool disc, bool mirror)
+    {
+      if (!disc) return Loop(Chamfered(xh0, xh1, ybore, yra, cBore, cTip), mirror);
+      var p = new List<double[]>
       {
-        double[] p1 = p[i];
-        double[] p2 = p[(i + 1) % p.Length];
-        Dictionary<string, object> s = new Dictionary<string, object>();
-        s["type"] = "line";
-        s["x1"] = p1[0]; s["y1"] = mirror ? -p1[1] : p1[1];
-        s["x2"] = p2[0]; s["y2"] = mirror ? -p2[1] : p2[1];
-        segs.Add(s);
+        new[] { xh0 + cBore, ybore }, new[] { xh1 - cBore, ybore }, new[] { xh1, ybore + cBore },
+        new[] { xh1, yhub }, new[] { xw1, yhub }, new[] { xw1, yrim }, new[] { xr1, yrim },
+        new[] { xr1, yra - cTip }, new[] { xr1 - cTip, yra }, new[] { xr0 + cTip, yra }, new[] { xr0, yra - cTip },
+        new[] { xr0, yrim }, new[] { xw0, yrim }, new[] { xw0, yhub }, new[] { xh0, yhub }, new[] { xh0, ybore + cBore },
+      };
+      return Loop(p, mirror);
+    }
+
+    // Сквозь отверстие за секущей плоскостью видна дальняя половина отверстия: рёбра торцов
+    // (кромки фасок, Ø отверстия + 2c) и концы фасок — линии между верхней и нижней частью разреза.
+    internal static void BoreEdges(double x0, double x1, double rb, double c)
+    {
+      ksDocument2D d = GetDoc();
+      d.ksLineSeg(x0, -rb - c, x0, rb + c, 1);
+      d.ksLineSeg(x1, -rb - c, x1, rb + c, 1);
+      if (c <= 0) return;
+      d.ksLineSeg(x0 + c, -rb, x0 + c, rb, 1);
+      d.ksLineSeg(x1 - c, -rb, x1 - c, rb, 1);
+    }
+
+    // Фаска отверстия ступицы по диаметру (ряд ГОСТ 10948).
+    internal static double BoreChamfer(double d)
+    {
+      return d <= 30 ? 1 : d <= 50 ? 1.6 : d <= 80 ? 2 : 2.5;
+    }
+
+    // Замкнутый контур из отрезков (формат hatch/DrawContour); mirror — отражение по оси x.
+    internal static List<object> Loop(IList<double[]> p, bool mirror)
+    {
+      double k = mirror ? -1 : 1;
+      List<object> segs = new List<object>();
+      for (int i = 0; i < p.Count; i++)
+      {
+        double[] p1 = p[i], p2 = p[(i + 1) % p.Count];
+        segs.Add(new Dictionary<string, object>
+        {
+          { "type", "line" }, { "x1", p1[0] }, { "y1", k * p1[1] }, { "x2", p2[0] }, { "y2", k * p2[1] }
+        });
       }
       return segs;
     }
 
-    static void AddLoop(List<object> segs, double[][] p)
-    {
-      for (int i = 0; i < p.Length; i++)
-      {
-        double[] p1 = p[i];
-        double[] p2 = p[(i + 1) % p.Length];
-        Dictionary<string, object> s = new Dictionary<string, object>();
-        s["type"] = "line";
-        s["x1"] = p1[0]; s["y1"] = p1[1]; s["x2"] = p2[0]; s["y2"] = p2[1];
-        segs.Add(s);
-      }
-    }
-
     // Создать листовой вид (становится активным): координаты геометрии — мм вида.
-    public static int MakeView(double x, double y, double scale, string name)
+    public static int MakeView(double x, double y, double scale, string name, double angle = 0)
     {
       ksDocument2D d = GetDoc();
       KompasObject kompas = KompasHost.Kompas;
@@ -868,7 +819,7 @@ namespace KompasMcp.Tools
       par.Init();
       par.x = x; par.y = y;
       par.scale_ = scale;
-      par.angle = 0;
+      par.angle = angle;
       par.state = (short)ldefin2d.stACTIVE;
       par.name = name;
       int vnum = 0;
@@ -891,7 +842,7 @@ namespace KompasMcp.Tools
 
       // диск: web=0 → сплошное колесо, иначе диск с выточками
       object webObj;
-      bool disc = !(a.TryGetValue("web", out webObj) && ToDbl(webObj) <= 0);
+      bool disc = !(a.TryGetValue("web", out webObj) && ToolRegistry.Number(webObj) <= 0);
       double web = disc ? ToolRegistry.GetDbl(a, "web", 0.3 * b) : 0;
       double hubD = 0, hubL = b;
       if (disc)
@@ -906,6 +857,11 @@ namespace KompasMcp.Tools
 
       double ra = w.Da / 2.0, ydf = w.Df / 2.0, ybore = d2 / 2.0;
       double yhub = disc ? hubD / 2.0 : ybore;
+      // обод под впадинами толщиной 2.5m (меньше — если до ступицы тесно): линия впадин остаётся
+      // внутри сечения и рисуется сплошной основной (ГОСТ 2.402)
+      double yrim = disc ? Math.Max(ydf - 2.5 * m, (ydf + yhub) / 2.0) : ybore;
+      double cTip = Math.Min(0.5 * m, b / 4.0);
+      double cBore = Math.Min(BoreChamfer(d2), ((disc ? yhub : ydf) - ybore) / 3.0);
       double xh0 = -hubL / 2.0, xh1 = hubL / 2.0, xr0 = -b / 2.0, xr1 = b / 2.0;
       double xw0 = -web / 2.0, xw1 = web / 2.0;
       double xMax = Math.Max(xh1, xr1);
@@ -920,27 +876,26 @@ namespace KompasMcp.Tools
 
       // ---- осевой разрез ----
       MakeView(f[0], f[1], s, "Осевой разрез");
-      DrawContour(GetDoc(), SectionContour(xh0, xh1, xr0, xr1, xw0, xw1, ybore, yhub, ydf, ra, disc, false), 1);
-      DrawContour(GetDoc(), SectionContour(xh0, xh1, xr0, xr1, xw0, xw1, ybore, yhub, ydf, ra, disc, true), 1);
-      // заливка полосами с зазором 0.5 мм от контура: иначе заливка перетекает через примыкающие углы
       foreach (bool mirror in new[] { false, true })
       {
+        DrawContour(GetDoc(), SectionContour(xh0, xh1, xr0, xr1, xw0, xw1, ybore, yhub, yrim, ra, cBore, cTip, disc, mirror), 1);
         if (disc)
         {
-          HatchRect(xr0 + 0.5, xr1 - 0.5, ydf + 0.5, ra - 0.5, mirror);
-          HatchRect(xw0 + 0.5, xw1 - 0.5, yhub + 0.5, ydf - 0.5, mirror);
-          HatchRect(xh0 + 0.5, xh1 - 0.5, ybore, yhub - 0.5, mirror);
+          HatchBlock(xr0, xr1, yrim, ra, 0, cTip, mirror);
+          HatchBlock(xw0, xw1, yhub, yrim, 0, 0, mirror);
+          HatchBlock(xh0, xh1, ybore, yhub, cBore, 0, mirror);
         }
-        else HatchRect(xh0 + 0.5, xh1 - 0.5, ybore, ra - 0.5, mirror);
+        else HatchBlock(xh0, xh1, ybore, ra, cBore, cTip, mirror);
         double sg = mirror ? -1 : 1;
         GetDoc().ksLineSeg(xr0, sg * ydf, xr1, sg * ydf, 1);                       // впадины — основной в разрезе
         GetDoc().ksLineSeg(xr0 - 2 / s, sg * w.D / 2.0, xr1 + 2 / s, sg * w.D / 2.0, 3); // делительная
       }
+      BoreEdges(xh0, xh1, ybore, cBore);
       GetDoc().ksLineSeg(-xMax - 5 / s, 0, xMax + 5 / s, 0, 3);
 
       // размеры: диаметры справа (отверстие, ступица, вершины), ширина венца сверху, ступица снизу
-      DrawKit.Dim(xh1, ybore, xh1, -ybore, true, 8, true);
-      if (disc) DrawKit.Dim(xh1, yhub, xh1, -yhub, true, 18, true);
+      DrawKit.Dim(xh1, ybore, xh1, -ybore, true, 11, true);
+      if (disc) DrawKit.Dim(xh1, yhub, xh1, -yhub, true, 21, true);
       DrawKit.Dim(xr1, ra, xr1, -ra, true, (xMax - xr1) * s + 30, true);
       DrawKit.Dim(xr0, ra, xr1, ra, false, 8);
       if (disc && Math.Abs(hubL - b) > 1e-6) DrawKit.Dim(xh0, -yhub, xh1, -yhub, false, -((ra - yhub) * s + 10));
@@ -1053,7 +1008,7 @@ namespace KompasMcp.Tools
         string baseName = docPath ?? Paths.Out("drawing.cdw");
         p = Path.ChangeExtension(baseName, ".png");
       }
-      p = AbsPath(p);
+      p = Paths.Abs(p);
       object rObj = d.RasterFormatParam();
       ksRasterFormatParam rPar = (ksRasterFormatParam)rObj;
       rPar.Init();

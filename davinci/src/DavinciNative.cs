@@ -1,10 +1,7 @@
-// Нативно-совместимая библиотека «Давинчи» (.rtw): КОМПАС грузит .rtw через
-// LoadLibrary и вызывает native-экспорты (SDK LibraryWizard: LIBRARYID,
-// LIBRARYENTRY, LIBRARYNAME(W), LibInterfaceNotifyEntry, LibIsOnApplication7).
-// Управляемые методы этого класса получают экспорты на этапе сборки
-// (build-native.ps1: ildasm + .export/.vtentry + ilasm), меню библиотеки
-// лежит в Win32-ресурсах (lib.rc: MENU 100 + STRINGTABLE). COM-вариант
-// (DavinciLibrary) остаётся для совместимости, КОМПАС его не грузит.
+// Библиотека «Давинчи» (.rtw): КОМПАС грузит её через LoadLibrary и вызывает native-экспорты
+// (как у SDK LibraryWizard: LIBRARYID, LIBRARYENTRY, LIBRARYNAME(W), LibInterfaceNotifyEntry,
+// LibIsOnApplication7). Экспорты статическим методам добавляет build-native.ps1
+// (ildasm + .export + ilasm), меню лежит в Win32-ресурсах (lib.rc: MENU 100 + STRINGTABLE).
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -125,20 +122,34 @@ namespace KompasMcp.Davinci
       DavinciLog.Write("native LIBRARYENTRY: " + comm);
       try
       {
-        if (comm == 1) DavinciLibrary.OpenPanel(kompasApp);
+        if (comm == 1)
+        {
+          string error = DavinciLauncher.OpenPanel(RotName());
+          if (error != null) Show(error);
+        }
         if (comm == 2)
         {
-          string msg = "Давинчи: ROT " + RotPrefix + System.Diagnostics.Process.GetCurrentProcess().Id +
-            ", лог %TEMP%\\kompas-davinci\\davinci.log";
-          KompasObject k = kompasApp as KompasObject;
-          if (k != null) k.ksMessage("Давинчи: " + msg);
-          else DavinciLog.Write("диагностика: " + msg);
+          string exe = DavinciLauncher.ResolveExe();
+          Show("ROT " + RotName() + ", сервер " + (exe ?? "не найден (см. davinci.json)") +
+            ", лог %TEMP%\\kompas-davinci\\davinci.log");
         }
       }
       catch (Exception e) { DavinciLog.Error("LIBRARYENTRY", e); }
     }
 
-    const string RotPrefix = "KOMPAS_DAVINCHI_";
+    // Сообщение в КОМПАСе, если пришёл объект API-5; иначе только в журнал.
+    static void Show(string message)
+    {
+      DavinciLog.Write("сообщение: " + message);
+      try
+      {
+        KompasObject k = kompasApp as KompasObject;
+        if (k != null) k.ksMessage("Давинчи: " + message);
+      }
+      catch (Exception e) { DavinciLog.Error("ksMessage", e); }
+    }
+
+    static string RotName() { return "KOMPAS_DAVINCHI_" + Process.GetCurrentProcess().Id; }
 
     [DllImport("ole32.dll")]
     static extern int GetRunningObjectTable(uint reserved, out IRunningObjectTable rot);
@@ -148,7 +159,7 @@ namespace KompasMcp.Davinci
 
     static void RegisterInRot(object applicationInterface)
     {
-      string name = RotPrefix + System.Diagnostics.Process.GetCurrentProcess().Id;
+      string name = RotName();
       IRunningObjectTable rot;
       if (GetRunningObjectTable(0, out rot) != 0 || rot == null) return;
       IMoniker mk;

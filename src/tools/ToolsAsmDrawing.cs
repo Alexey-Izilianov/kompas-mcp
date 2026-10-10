@@ -146,7 +146,7 @@ namespace KompasMcp.Tools
 
       if (ToolRegistry.GetBool(a, "spec", true))
       {
-        ToolRegistry.Find("close_drawing").Handler(new Dictionary<string, object>());
+        Tools2D.CloseDrawing();
         res["spec"] = Spec(a, positions, asmName, designation, path);
       }
       return res;
@@ -167,7 +167,7 @@ namespace KompasMcp.Tools
       return res;
     }
 
-    static string Projection(string v)
+    internal static string Projection(string v)
     {
       switch (v)
       {
@@ -177,7 +177,7 @@ namespace KompasMcp.Tools
       }
     }
 
-    static string ViewName(string v)
+    internal static string ViewName(string v)
     {
       switch (v)
       {
@@ -187,7 +187,7 @@ namespace KompasMcp.Tools
       }
     }
 
-    static void Place(IAssociationView view, double x, double y, double scale)
+    internal static void Place(IAssociationView view, double x, double y, double scale)
     {
       IView iv = (IView)view;
       iv.X = x; iv.Y = y; iv.Scale = scale;
@@ -196,7 +196,7 @@ namespace KompasMcp.Tools
 
     // Координаты вида для точки модели. GetProjectionPoint есть в КОМПАС v22, но не в interop-сборке
     // SDK (она старше) — вызов поздним связыванием через IDispatch.
-    static double[] Project(IAssociationView view, double x, double y, double z)
+    internal static double[] Project(IAssociationView view, double x, double y, double z)
     {
       object[] args = { x, y, z, 0.0, 0.0 };
       ParameterModifier mod = new ParameterModifier(5);
@@ -208,7 +208,7 @@ namespace KompasMcp.Tools
     }
 
     // габарит проекции (minX, maxX, minY, maxY) по 8 углам габарита сборки
-    static double[] ProjectedBox(IAssociationView view, double[] mn, double[] mx)
+    internal static double[] ProjectedBox(IAssociationView view, double[] mn, double[] mx)
     {
       double[] b = { double.MaxValue, double.MinValue, double.MaxValue, double.MinValue };
       for (int i = 0; i < 8; i++)
@@ -355,7 +355,7 @@ namespace KompasMcp.Tools
       if (!string.IsNullOrEmpty(png))
         args["png"] = Path.Combine(Path.GetDirectoryName(Paths.Abs(png)),
           Path.GetFileNameWithoutExtension(png) + "_spec.png");
-      return ToolRegistry.Find("spec_drawing").Handler(args);
+      return ToolsSpc.SpecDrawing(args);
     }
   }
 }

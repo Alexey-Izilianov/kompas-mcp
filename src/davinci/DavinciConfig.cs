@@ -42,8 +42,13 @@ namespace KompasMcp.Davinci
         if (!string.IsNullOrEmpty(Provider)) return Provider;
         string url;
         if (!Env.TryGetValue("ANTHROPIC_BASE_URL", out url) || string.IsNullOrEmpty(url)) return ProviderClaude;
-        return url.Contains(":11434") || url.ToLowerInvariant().Contains("ollama") ? ProviderOllama : ProviderApi;
+        return IsOllamaUrl(url) ? ProviderOllama : ProviderApi;
       }
+    }
+
+    public static bool IsOllamaUrl(string url)
+    {
+      return url.Contains(":11434") || url.ToLowerInvariant().Contains("ollama");
     }
 
     // Окружение claude: переменные источника, поверх — env.
@@ -168,8 +173,8 @@ namespace KompasMcp.Davinci
 
     static double AsDouble(object v, double def)
     {
-      double d;
       if (v is double) return (double)v;
+      double d;
       if (v != null && double.TryParse(Convert.ToString(v).Replace(',', '.'),
             System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out d))
         return d;

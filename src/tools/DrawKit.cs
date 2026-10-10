@@ -110,6 +110,7 @@ namespace KompasMcp.Tools
       d.ksText(x, y, 0, h, narrow, 0, s);
     }
 
+    // Основная надпись; пустые поля и scale ≤ 0 не заполняются
     public static void Stamp(string description, string designation, string material, double scale)
     {
       try
@@ -120,7 +121,7 @@ namespace KompasMcp.Tools
         Set(stamp, Tools2D.StampName, description);
         Set(stamp, Tools2D.StampDesignation, designation);
         Set(stamp, (int)ksStampEnum.ksStMaterial, material);
-        Set(stamp, (int)ksStampEnum.ksStScale, ScaleText(scale));
+        if (scale > 0) Set(stamp, (int)ksStampEnum.ksStScale, ScaleText(scale));
         Set(stamp, (int)ksStampEnum.ksStSheetNumber, "1");
         Set(stamp, (int)ksStampEnum.ksStNumberOfSheets, "1");
         stamp.Update();
@@ -150,19 +151,10 @@ namespace KompasMcp.Tools
     // Штриховка многоугольника отдельным блоком без обводки (обводку рисует вызывающий)
     public static void Hatch(IList<double[]> pts, bool mirrorY = false)
     {
-      double s = mirrorY ? -1 : 1;
-      List<object> segs = new List<object>(pts.Count);
-      for (int i = 0; i < pts.Count; i++)
-      {
-        double[] a = pts[i], b = pts[(i + 1) % pts.Count];
-        segs.Add(new Dictionary<string, object>
-        {
-          { "type", "line" }, { "x1", a[0] }, { "y1", s * a[1] }, { "x2", b[0] }, { "y2", s * b[1] }
-        });
-      }
       Tools2D.Hatch(new Dictionary<string, object>
       {
-        { "contour", segs }, { "angle", 45.0 }, { "step", 2.5 }, { "x0", pts[0][0] }, { "y0", s * pts[0][1] },
+        { "contour", Tools2D.Loop(pts, mirrorY) }, { "angle", 45.0 }, { "step", 2.5 },
+        { "x0", pts[0][0] }, { "y0", (mirrorY ? -1 : 1) * pts[0][1] },
         { "outline", false }
       });
     }

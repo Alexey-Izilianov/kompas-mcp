@@ -5,9 +5,8 @@ using KompasMcp.Gost;
 
 namespace KompasMcp.Tools
 {
-  // Зубчатые передачи (Фаза 5). gear_calc - чистый расчёт ГОСТ 16532 без КОМПАСа;
-  // gear_wheel - 3D-колесо: эвольвентный профиль (аппроксимация отрезками) -> extrude -> отверстие;
-  // gear_pair - 3D-сборка пары: межосевое + фаза зацепления через placement компонентов.
+  // Цилиндрические передачи: gear_calc — геометрия ГОСТ 16532 без КОМПАСа; gear_wheel — 3D-колесо
+  // (эвольвента отрезками → выдавливание → отверстие); gear_pair — сборка пары в зацеплении.
   public static class ToolsGear
   {
     public static void Register()
@@ -86,79 +85,35 @@ namespace KompasMcp.Tools
       Gost16532.Wheel w = Gost16532.WheelGeom(m, z);
       if (w.Undercut) throw new ToolException("z=" + z + " < 17 без смещения - подрезание профиля; увеличьте z");
 
-      string name = ToolRegistry.GetStr(a, "name", "Колесо m" + m + " z" + z);
-      Dictionary<string, object> createArgs = new Dictionary<string, object>();
-      createArgs["name"] = name;
-      string path = ToolRegistry.GetStr(a, "path", null);
-      if (path != null) createArgs["path"] = path;
+      Dictionary<string, object> createArgs = new Dictionary<string, object> { { "name", ToolRegistry.GetStr(a, "name", "Колесо m" + m + " z" + z) } };
+      if (a.ContainsKey("path")) createArgs["path"] = ToolRegistry.GetStr(a, "path");
       Tools3D.CreatePart(createArgs);
 
-      // профиль: замкнутая полилиния точек
-      List<double[]> pts = Gost16532.ProfilePoints(m, z, samples);
-      Dictionary<string, object> sk = new Dictionary<string, object>();
-      sk["plane"] = "XOY";
-      List<object> segs = new List<object>();
-      for (int i = 0; i < pts.Count; i++)
-      {
-        double[] p1 = pts[i];
-        double[] p2 = pts[(i + 1) % pts.Count];
-        Dictionary<string, object> seg = new Dictionary<string, object>();
-        seg["type"] = "line";
-        seg["x1"] = Math.Round(p1[0], 4);
-        seg["y1"] = Math.Round(p1[1], 4);
-        seg["x2"] = Math.Round(p2[0], 4);
-        seg["y2"] = Math.Round(p2[1], 4);
-        segs.Add(seg);
-      }
-      sk["elements"] = segs;
-      Tools3D.Sketch(sk);
-
-      Dictionary<string, object> ex = new Dictionary<string, object>();
-      ex["depth"] = width;
-      ex["base"] = true;
-      ex["direction"] = 1;
-      Tools3D.Extrude(ex, cut: false);
-
+      if (bore >= w.Df) throw new ToolException("Отверстие bore=" + bore + " больше df=" + w.Df);
+      Tools3D.PolySketch(Tools3D.PlaneByName(Tools3D.GetPart(), "XOY"), Gost16532.ProfilePoints(m, z, samples));
+      Tools3D.Extrude(new Dictionary<string, object> { { "depth", width }, { "base", true } }, cut: false);
       if (bore > 0)
       {
-        if (bore >= w.Df) throw new ToolException("Отверстие bore=" + bore + " больше df=" + w.Df);
-        Dictionary<string, object> boreSk = new Dictionary<string, object>();
-        boreSk["plane"] = "XOY";
-        Dictionary<string, object> circ = new Dictionary<string, object>();
-        circ["type"] = "circle";
-        circ["xc"] = 0.0; circ["yc"] = 0.0; circ["r"] = bore / 2.0;
-        List<object> els = new List<object>();
-        els.Add(circ);
-        boreSk["elements"] = els;
-        Tools3D.Sketch(boreSk);
-        Dictionary<string, object> cut = new Dictionary<string, object>();
-        cut["mode"] = "through";
-        Tools3D.Extrude(cut, cut: true);
+        Tools3D.Sketch(new Dictionary<string, object>
+        {
+          { "elements", new List<object> { new Dictionary<string, object> { { "type", "circle" }, { "xc", 0.0 }, { "yc", 0.0 }, { "r", bore / 2.0 } } } }
+        });
+        Tools3D.Extrude(new Dictionary<string, object> { { "mode", "through" } }, cut: true);
       }
-
-      Dictionary<string, object> mat = new Dictionary<string, object>();
-      mat["name"] = "Сталь 45 ГОСТ 1050-88";
-      mat["density"] = 7850.0;
-      Tools3D.SetMaterialOp(mat);
-
-      Dictionary<string, object> saveArgs = new Dictionary<string, object>();
-      if (path != null) saveArgs["path"] = path;
-      Tools3D.SavePart(saveArgs);
+      Tools3D.SetMaterialOp(new Dictionary<string, object> { { "name", "Сталь 45 ГОСТ 1050-88" }, { "density", 7850.0 } });
+      Tools3D.SavePart(new Dictionary<string, object>());
 
       return new Dictionary<string, object>
       {
-        { "saved", saveArgs.ContainsKey("path") ? saveArgs["path"] : Tools3D.PartPath },
+        { "saved", Tools3D.PartPath },
         { "da", w.Da }, { "df", w.Df }, { "d", w.D },
         { "mass_kg", Tools3D.CurrentMass() }
       };
     }
 
-    // Сборка пары колёс. Оси обоих колёс вдоль глобального Z (профили в XOY,
-    // выдавливание вдоль Z). Шестерня в начале координат, колесо смещено на
-    // межосевое a по X. Фаза зацепления: зуб шестерни центрирован на +X (угол 0
-    // и т.п. в ProfilePoints), значит у колеса в направлении шестерни (-X, угол
-    // 180) должна быть впадина: центры впадин - (k+0.5)*step, поворот колеса
-    // phi = 180 - (k+0.5)*step, k - ближайшая к 180 впадина (phi в [0, шаг)).
+    // Сборка пары: оси колёс — глобальная Z, шестерня в начале координат, колесо — на межосевом a
+    // по X. Зуб 0 шестерни центрирован на +X (ProfilePoints), значит против неё (угол 180° у колеса)
+    // нужна впадина: центры впадин — (k + 0.5)·step, поворот колеса phi = 180° − (k + 0.5)·step.
     static object GearPair(Dictionary<string, object> a)
     {
       double m = ToolRegistry.GetDbl(a, "m");
@@ -176,9 +131,7 @@ namespace KompasMcp.Tools
       if (width1 <= 0 || width1 > 500 || width2 <= 0 || width2 > 500)
         throw new ToolException("Ширина венца должна быть 0..500");
 
-      string asmPath = ToolRegistry.GetStr(a, "path", null);
-      if (asmPath != null) asmPath = KompasMcp.Paths.Abs(asmPath);
-      if (asmPath == null) asmPath = KompasMcp.Paths.Out("gear_pair.a3d");
+      string asmPath = Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("gear_pair.a3d")));
       string dir = System.IO.Path.GetDirectoryName(asmPath);
       string nameOfGears = "m" + Tools2D.FmtNum(m);
       string path1 = System.IO.Path.Combine(dir, "pinion" + nameOfGears + "_z" + z1 + ".m3d");
@@ -227,8 +180,7 @@ namespace KompasMcp.Tools
       try { Tools3D.GetPart().RebuildModel(); }
       catch (Exception e) { Log.Error("gear_pair rebuild", e); }
 
-      Dictionary<string, object> saveArgs = new Dictionary<string, object>();
-      Tools3D.SavePart(saveArgs);
+      Tools3D.SavePart(new Dictionary<string, object>());
 
       return new Dictionary<string, object>
       {

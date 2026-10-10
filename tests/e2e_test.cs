@@ -1,4 +1,4 @@
-// E2E smoke (Этап 6): живой видимый КОМПАС (kompas_spawn.exe) -> claude CLI
+// E2E smoke: живой видимый КОМПАС (kompas_spawn.exe) -> claude CLI
 // через runner с mcp-config (KompasMcp.exe --attach) -> модель вызывает
 // kompas_status -> в result должен быть mode:"attach" и pid КОМПАСа.
 // КОМПАС должен остаться жив после завершения claude.
@@ -33,7 +33,7 @@ class E2eTest
     {
       if (ev == null) return;
       if (!string.IsNullOrEmpty(ev.AssistantText)) texts.Add("A: " + ev.AssistantText);
-      else if (ev.Type == "assistant" && !string.IsNullOrEmpty(ev.ToolName)) texts.Add("[тул] " + ev.ToolName);
+      else if (ev.Type == "assistant" && ev.ToolNames.Count > 0) texts.Add("[тул] " + string.Join(", ", ev.ToolNames.ToArray()));
       else if (ev.Type == "result" && ev.ResultText != null) texts.Add("R: " + ev.ResultText);
     };
     bool done = false;

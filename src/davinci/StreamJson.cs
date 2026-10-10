@@ -1,5 +1,4 @@
-// Разбор событий stream-json (claude -p --output-format stream-json --verbose).
-// JSON-парсер — свой Json.cs (shared source с kompas-mcp). Модель значений:
+// Разбор событий stream-json (claude -p --output-format stream-json --verbose) парсером Json.cs:
 // Dictionary<string,object> / List<object> / string / double / bool / null.
 using System;
 using System.Collections.Generic;
@@ -7,8 +6,8 @@ using KompasMcp.JsonLib;
 
 namespace KompasMcp.Davinci
 {
-  // Одно событие потока. Нас интересуют: assistant (текст/tool_use),
-  // user (tool_result), result (итог), system (init — session_id).
+  // Одно событие потока: assistant (текст, tool_use), user (tool_result), result (итог),
+  // system (init с session_id).
   public class StreamEvent
   {
     public string Type;            // system | assistant | user | result
@@ -17,13 +16,10 @@ namespace KompasMcp.Davinci
     public bool IsError;
     public string AssistantText;   // склейка text-блоков assistant-сообщения
     public string Model;           // модель сообщения; "<synthetic>" — сообщение claude об ошибке API
-    public string ToolName;        // имя tool_use (mcp__kompas-mcp__ping); последнее в сообщении
-    public readonly List<string> ToolNames = new List<string>(); // все tool_use сообщения по порядку
+    public readonly List<string> ToolNames = new List<string>(); // tool_use сообщения по порядку (mcp__kompas-mcp__ping)
     public string ToolResultText;  // текст tool_result (событие user)
     public bool ToolResultIsError; // tool_result с is_error — инструмент вернул ошибку
     public string ResultText;      // финальный ответ (result)
-    public double TotalCostUsd;
-    public int NumTurns;
 
     static string S(Dictionary<string, object> d, string key)
     {
@@ -43,6 +39,12 @@ namespace KompasMcp.Davinci
       return d.TryGetValue(key, out v) ? v as List<object> : null;
     }
 
+    static bool IsTrue(Dictionary<string, object> d, string key)
+    {
+      object v;
+      return d.TryGetValue(key, out v) && v is bool && (bool)v;
+    }
+
     public static StreamEvent Parse(string line)
     {
       if (line == null || line.Length == 0) return null;
@@ -57,21 +59,8 @@ namespace KompasMcp.Davinci
       ev.SessionId = S(d, "session_id");
       ev.Subtype = S(d, "subtype");
 
+      ev.IsError = IsTrue(d, "is_error");
       object o;
-      if (d.TryGetValue("is_error", out o))
-        ev.IsError = (o is bool && (bool)o) ||
-          ("true".Equals(o == null ? null : o.ToString(), StringComparison.OrdinalIgnoreCase));
-      if (d.TryGetValue("total_cost_usd", out o))
-      {
-        double dd;
-        if (o != null && double.TryParse(o.ToString(), System.Globalization.NumberStyles.Float,
-              System.Globalization.CultureInfo.InvariantCulture, out dd)) ev.TotalCostUsd = dd;
-      }
-      if (d.TryGetValue("num_turns", out o))
-      {
-        int ii;
-        if (o != null && int.TryParse(o.ToString(), out ii)) ev.NumTurns = ii;
-      }
       if (d.TryGetValue("result", out o)) ev.ResultText = o as string;
 
       var msg = D(d, "message");
@@ -92,14 +81,10 @@ namespace KompasMcp.Davinci
               if (ev.Type == "assistant") texts.Add(S(block, "text") ?? "");
             }
             else if (bt == "tool_use")
-            {
-              ev.ToolName = S(block, "name") ?? "";
-              ev.ToolNames.Add(ev.ToolName);
-            }
+              ev.ToolNames.Add(S(block, "name") ?? "");
             else if (bt == "tool_result")
             {
-              object err;
-              if (block.TryGetValue("is_error", out err) && err is bool && (bool)err) ev.ToolResultIsError = true;
+              if (IsTrue(block, "is_error")) ev.ToolResultIsError = true;
               var rc = L(block, "content");
               if (rc != null)
               {
@@ -108,8 +93,7 @@ namespace KompasMcp.Davinci
                 {
                   var rblock = ritem as Dictionary<string, object>;
                   if (ritem is string) parts.Add((string)ritem);
-                  else if (ritem != null && S(ritem as Dictionary<string, object>, "type") == "text")
-                    parts.Add(S((Dictionary<string, object>)ritem, "text") ?? "");
+                  else if (rblock != null && S(rblock, "type") == "text") parts.Add(S(rblock, "text") ?? "");
                 }
                 ev.ToolResultText = string.Join("\n", parts.ToArray());
               }

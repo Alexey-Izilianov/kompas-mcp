@@ -7,15 +7,10 @@ using Kompas6Constants3D;
 
 namespace KompasMcp.Tools
 {
-  // 3D-домен. Идиомы — из проверенных flange.cs/part3d.cs и SDK-сэмпла Step3d1:
-  //  - документ детали только через API-7 Documents.Add(ksDocumentPart, true) (true = невидимо, false → null);
-  //  - doc3D = kompas.ActiveDocument3D(), part = doc3D.GetPart(pTop_Part=-1) (НЕ pNew_Part);
-  //  - эскиз: o3d_sketch + SetPlane + Create + BeginEdit/EndEdit;
-  //  - выдавливание: o3d_baseExtrusion / o3d_bossExtrusion + SetSideParam(forward, etBlind/etThroughAll, depth, 0, false);
-  //  - вырез: o3d_cutExtrusion + SetSideParam(false, etThroughAll, 0, 0, false) + dtBoth (v22: side=true режет глубину/2);
-  //  - вращение: o3d_bossRotated + SetSideParam(true, угол) + SetSketch (Step3d1);
-  //  - фаска/скругление: o3d_chamfer/o3d_fillet + SetChamferParam/radius + array() ← рёбра по точкам;
-  //  - материал/масса: part.SetMaterial(name, плотность), part.GetMass(); затем part.RebuildModel().
+  // 3D-деталь и сборка. Документ создаётся через API-7 Documents.Add(тип, true) (с false в скрытом
+  // КОМПАСе приходит null), дальше API-5: ActiveDocument3D, корень — GetPart(pTop_Part).
+  // Операции проверяются по изменению массы: КОМПАС «успешно» создаёт и пустые операции.
+  // Вырез выдавливанием в v22 капризен к стороне — варианты перебираются до изменения массы.
   public static class Tools3D
   {
     static ksDocument3D doc3D;
@@ -65,11 +60,10 @@ namespace KompasMcp.Tools
         a => Sketch(a));
 
       ToolRegistry.Add("extrude_boss",
-        "Приклеить выдавливанием эскиз (sketchId; по умолчанию последний). depth — глубина, direction: 1=вперёд от плоскости, -1=назад.",
+        "Приклеить выдавливанием эскиз (sketchId; по умолчанию последний) на глубину depth по нормали плоскости эскиза. Для выдавливания в другую сторону постройте эскиз на смещённой плоскости (sketch.offset).",
         @"{""type"":""object"",""properties"":{
 ""sketchId"":{""type"":""integer"",""description"":""По умолчанию последний эскиз""},
 ""depth"":{""type"":""number""},
-""direction"":{""type"":""integer"",""description"":""По умолчанию 1""},
 ""base"":{""type"":""boolean"",""description"":""true = базовая операция (первая), false = приклеенная (по умолчанию)""}},
 ""required"":[""depth""]}",
         a => Extrude(a, false));
@@ -224,24 +218,13 @@ namespace KompasMcp.Tools
 
     // ---- состояние ----
 
-    internal static object CreatePart(Dictionary<string, object> a) { return CreatePartImpl(a); }
-
     // ---- сборки ----
 
     internal static object CreateAssembly(Dictionary<string, object> a)
     {
-      IApplication app7 = KompasHost.App7;
-      object docObj = app7.Documents.Add(DocumentTypeEnum.ksDocumentAssembly, true);
-      if (docObj == null) throw new ToolException("Documents.Add(assembly) вернул null");
-      doc7 = (IKompasDocument3D)docObj;
-      doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
-      part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
-      if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null для сборки");
+      Activate(KompasHost.App7.Documents.Add(DocumentTypeEnum.ksDocumentAssembly, true),
+        Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("assembly.a3d"))));
       SetIdentity(a);
-      partPath = Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("assembly.a3d")));
-      lastSketch = null;
-      sketches.Clear();
-      sketchSeq = 0;
       Log.Write("create_assembly: " + part.name + " -> " + partPath);
       return new Dictionary<string, object> { { "assembly", part.name }, { "path", partPath } };
     }
@@ -331,8 +314,19 @@ namespace KompasMcp.Tools
         try { doc7.Close(DocumentCloseOptions.kdDoNotSaveChanges); }
         catch (Exception e) { Log.Error("close doc", e); }
       }
-      doc7 = null; doc3D = null; part = null; partPath = null;
-      lastSketch = null; sketches.Clear();
+      Reset();
+    }
+
+    // Сделать документ текущим: деталь или сборка, путь сохранения; эскизы — с чистого листа.
+    static void Activate(object docObj, string path)
+    {
+      if (docObj == null) throw new ToolException("КОМПАС не создал/не открыл документ: " + path);
+      Reset();
+      doc7 = (IKompasDocument3D)docObj;
+      doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
+      part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
+      if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null");
+      partPath = path;
     }
 
     static object PlaceComponent(Dictionary<string, object> a)
@@ -480,19 +474,11 @@ namespace KompasMcp.Tools
 
     // ---- инструменты ----
 
-    static object CreatePartImpl(Dictionary<string, object> a)
+    internal static object CreatePart(Dictionary<string, object> a)
     {
-      IApplication app7 = KompasHost.App7;
-      object docObj = app7.Documents.Add(DocumentTypeEnum.ksDocumentPart, true);
-      if (docObj == null) throw new ToolException("Documents.Add вернул null (невидимое создание деталей должно идти с visible=true)");
-      doc7 = (IKompasDocument3D)docObj;
-      doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
-      part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
-      if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null");
+      Activate(KompasHost.App7.Documents.Add(DocumentTypeEnum.ksDocumentPart, true),
+        Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("part.m3d"))));
       SetIdentity(a);
-      partPath = Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("part.m3d")));
-      lastSketch = null;
-      sketches.Clear();
       return new Dictionary<string, object> { { "created", true }, { "name", part.name } };
     }
 
@@ -500,16 +486,7 @@ namespace KompasMcp.Tools
     {
       if (path == null || path.Length == 0) throw new ToolException("Нет path");
       path = Paths.Abs(path);
-      IApplication app7 = KompasHost.App7;
-      object docObj = app7.Documents.Open(path, false, false);
-      if (docObj == null) throw new ToolException("Documents.Open вернул null: " + path);
-      doc7 = (IKompasDocument3D)docObj;
-      doc3D = (ksDocument3D)KompasHost.Kompas.ActiveDocument3D();
-      part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
-      if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null");
-      partPath = path;
-      lastSketch = null;
-      sketches.Clear();
+      Activate(KompasHost.App7.Documents.Open(path, false, false), path);
       return new Dictionary<string, object> { { "opened", path } };
     }
 
@@ -529,31 +506,15 @@ namespace KompasMcp.Tools
 
     internal static object Sketch(Dictionary<string, object> a)
     {
-      ksPart p = GetPart();
-      ksEntity plane = PlaneByName(p, ToolRegistry.GetStr(a, "plane", "XOY"));
-      object offObj;
-      if (a.TryGetValue("offset", out offObj))
+      string planeName = ToolRegistry.GetStr(a, "plane", "XOY");
+      ksEntity plane = a.ContainsKey("offset")
+        ? OffsetPlane(planeName, ToolRegistry.GetDbl(a, "offset"))
+        : PlaneByName(GetPart(), planeName);
+      object elsObj;
+      List<object> elements = a.TryGetValue("elements", out elsObj) ? elsObj as List<object> : null;
+      if (elements == null || elements.Count == 0) throw new ToolException("Пустой elements");
+      ksEntity sk = NewSketch(plane, d2d =>
       {
-        double off = ToolRegistry.GetDbl(a, "offset");
-        ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_planeOffset);
-        ksPlaneOffsetDefinition pd = (ksPlaneOffsetDefinition)op.GetDefinition();
-        pd.SetPlane(plane);
-        pd.direction = off >= 0;
-        pd.offset = Math.Abs(off);
-        if (!op.Create()) throw new ToolException("planeOffset.Create вернул 0");
-        plane = op;
-      }
-
-      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
-      ksSketchDefinition skDef = (ksSketchDefinition)sk.GetDefinition();
-      skDef.SetPlane(plane);
-      sk.Create();
-      ksDocument2D d2d = (ksDocument2D)skDef.BeginEdit();
-      try
-      {
-        object elsObj;
-        List<object> elements = a.TryGetValue("elements", out elsObj) ? elsObj as List<object> : null;
-        if (elements == null || elements.Count == 0) throw new ToolException("Пустой elements");
         foreach (object elObj in elements)
         {
           Dictionary<string, object> el = elObj as Dictionary<string, object>;
@@ -579,15 +540,9 @@ namespace KompasMcp.Tools
               throw new ToolException("Неизвестный элемент эскиза: " + type);
           }
         }
-      }
-      finally
-      {
-        skDef.EndEdit();
-      }
-
+      });
       int id = ++sketchSeq;
       sketches[id] = sk;
-      lastSketch = sk;
       return new Dictionary<string, object> { { "sketchId", id } };
     }
 
@@ -609,13 +564,7 @@ namespace KompasMcp.Tools
     // На XOZ глобальная Z = −y эскиза (проверено габаритом), x эскиза = глобальная X.
     internal static ksEntity PolySketch(ksEntity plane, params IList<double[]>[] contours)
     {
-      ksPart p = GetPart();
-      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
-      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
-      def.SetPlane(plane);
-      sk.Create();
-      ksDocument2D d = (ksDocument2D)def.BeginEdit();
-      try
+      return NewSketch(plane, d =>
       {
         foreach (IList<double[]> c in contours)
           for (int i = 0; i < c.Count; i++)
@@ -623,7 +572,17 @@ namespace KompasMcp.Tools
             double[] a = c[i], b = c[(i + 1) % c.Count];
             d.ksLineSeg(a[0], a[1], b[0], b[1], 1);
           }
-      }
+      });
+    }
+
+    // Эскиз на плоскости: draw рисует в его 2D-документе; эскиз становится последним (для операций).
+    static ksEntity NewSketch(ksEntity plane, Action<ksDocument2D> draw)
+    {
+      ksEntity sk = (ksEntity)GetPart().NewEntity((short)Obj3dType.o3d_sketch);
+      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
+      def.SetPlane(plane);
+      sk.Create();
+      try { draw((ksDocument2D)def.BeginEdit()); }
       finally { def.EndEdit(); }
       lastSketch = sk;
       return sk;
@@ -634,15 +593,9 @@ namespace KompasMcp.Tools
     // bossRotated/cutRotated.Create возвращает 0.
     internal static object RevolveZ(IList<double[]> rz, bool cut)
     {
-      ksPart p = GetPart();
-      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
-      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
-      def.SetPlane(PlaneByName(p, "XOZ"));
-      sk.Create();
-      ksDocument2D d = (ksDocument2D)def.BeginEdit();
-      double zMin = double.MaxValue, zMax = double.MinValue;
-      try
+      NewSketch(PlaneByName(GetPart(), "XOZ"), d =>
       {
+        double zMin = double.MaxValue, zMax = double.MinValue;
         for (int i = 0; i < rz.Count; i++)
         {
           double[] a = rz[i], b = rz[(i + 1) % rz.Count];
@@ -651,9 +604,7 @@ namespace KompasMcp.Tools
           zMax = Math.Max(zMax, a[1]);
         }
         d.ksLineSeg(0, -zMin + 1, 0, -zMax - 1, 3);
-      }
-      finally { def.EndEdit(); }
-      lastSketch = sk;
+      });
       return Revolve(new Dictionary<string, object> { { "angle", 360.0 } }, cut);
     }
 
@@ -664,18 +615,11 @@ namespace KompasMcp.Tools
       double[] from, double[] to, double angle, bool reverse = false)
     {
       ksPart p = GetPart();
-      ksEntity sk = (ksEntity)p.NewEntity((short)Obj3dType.o3d_sketch);
-      ksSketchDefinition def = (ksSketchDefinition)sk.GetDefinition();
-      def.SetPlane(plane);
-      sk.Create();
-      ksDocument2D d = (ksDocument2D)def.BeginEdit();
-      try
+      ksEntity sk = NewSketch(plane, d =>
       {
         d.ksCircle(xc, yc, r, 1);
         d.ksLineSeg(from[0], from[1], to[0], to[1], 3);
-      }
-      finally { def.EndEdit(); }
-      lastSketch = sk;
+      });
       double mass0 = p.GetMass();
       ksEntity op = (ksEntity)p.NewEntity((short)Obj3dType.o3d_bossRotated);
       ksBossRotatedDefinition rd = (ksBossRotatedDefinition)op.GetDefinition();
@@ -804,6 +748,8 @@ namespace KompasMcp.Tools
       short endType;
       double depth = 0;
       bool forward = ToolRegistry.GetInt(a, "direction", 1) > 0;
+      // directionType = dtReverse у base/bossExtrusion валит Create — обратную сторону даёт эскиз со смещением
+      if (!cut && !forward) throw new ToolException("direction=-1 не поддерживается; используйте sketch с offset");
 
       if (cut)
       {
@@ -811,10 +757,8 @@ namespace KompasMcp.Tools
         bool through = cutMode == "through";
         endType = (short)(through ? End_Type.etThroughAll : End_Type.etBlind);
         if (!through) depth = ToolRegistry.GetDbl(a, "depth");
-        // v22: вырез капризен к стороне и типу направления — Create возвращает 1,
-        // но материал не трогается (dtNormal+blind уводит вырез "в никуда").
-        // Проверено матрицей: сквозной надёжно работает как side=false + dtBoth.
-        // Стратегия: перебор вариантов с контролем массы; пустой вырез = не успех.
+        // Create возвращает успех и для пустого выреза (dtNormal + blind уводит его «в никуда»):
+        // варианты стороны и направления перебираются, пока масса не уменьшится.
         int[,] variants = through
           ? new int[,] { { 0, (short)Direction_Type.dtBoth }, { 1, (short)Direction_Type.dtBoth } }
           : new int[,] { { forward ? 1 : 0, (short)Direction_Type.dtNormal },
@@ -843,21 +787,17 @@ namespace KompasMcp.Tools
       bool baseOp = ToolRegistry.GetBool(a, "base", false);
       double massBefore = p.GetMass();
       op = (ksEntity)p.NewEntity((short)(baseOp ? Obj3dType.o3d_baseExtrusion : Obj3dType.o3d_bossExtrusion));
-      // определения не взаимозаменяемы: bossExtrusion отдаёт ksBossExtrusionDefinition,
-      // QI к ksBaseExtrusionDefinition падает (E_NOINTERFACE)
-      // directionType=dtReverse на base/bossExtrusion валит Create (проверено) -
-      // выдавливание назад не поддерживаем: эскиз на смещённой плоскости (offset) + прямое выдавливание
-      if (!forward) throw new ToolException("direction=-1 не поддерживается; используйте sketch с offset и direction=1");
+      // определения разные: QI ksBossExtrusionDefinition к ksBaseExtrusionDefinition — E_NOINTERFACE
       if (baseOp)
       {
         ksBaseExtrusionDefinition bdef = (ksBaseExtrusionDefinition)op.GetDefinition();
-        bdef.SetSideParam(forward, (short)End_Type.etBlind, depth, 0, false);
+        bdef.SetSideParam(true, (short)End_Type.etBlind, depth, 0, false);
         bdef.SetSketch(sk);
       }
       else
       {
         ksBossExtrusionDefinition bdef = (ksBossExtrusionDefinition)op.GetDefinition();
-        bdef.SetSideParam(forward, (short)End_Type.etBlind, depth, 0, false);
+        bdef.SetSideParam(true, (short)End_Type.etBlind, depth, 0, false);
         bdef.SetSketch(sk);
       }
       if (!op.Create()) throw new ToolException("extrusion.Create вернул 0");
@@ -905,7 +845,6 @@ namespace KompasMcp.Tools
         if (p.GetMass() < mass0 + 1e-9)
           throw new ToolException("операция вращения ничего не добавила (масса не изменилась)");
       }
-      p.RebuildModel();
       var res = new Dictionary<string, object>();
       res[cut ? "cutRotated" : "bossRotated"] = true;
       res["mass_kg"] = p.GetMass();
@@ -922,7 +861,7 @@ namespace KompasMcp.Tools
         if (pt == null || pt.Count < 3) throw new ToolException("Точка ребра должна быть тройкой [x,y,z]");
         ksEntityCollection edges = (ksEntityCollection)p.EntityCollection((short)Obj3dType.o3d_edge);
         if (edges == null) throw new ToolException("EntityCollection(o3d_edge) вернул null");
-        if (edges.SelectByPoint(ToDbl(pt[0]), ToDbl(pt[1]), ToDbl(pt[2])))
+        if (edges.SelectByPoint(ToolRegistry.Number(pt[0]), ToolRegistry.Number(pt[1]), ToolRegistry.Number(pt[2])))
         {
           for (int i = 0; i < edges.GetCount(); i++)
             picked.Add((ksEntity)edges.GetByIndex(i));
@@ -932,20 +871,8 @@ namespace KompasMcp.Tools
       return picked;
     }
 
-    static double ToDbl(object o)
-    {
-      if (o is double) return (double)o;
-      if (o is int) return (int)o;
-      if (o is long) return (long)o;
-      double d;
-      if (double.TryParse(o.ToString(), System.Globalization.NumberStyles.Float,
-        System.Globalization.CultureInfo.InvariantCulture, out d)) return d;
-      throw new ToolException("Не число: " + o);
-    }
-
-    // Рецепт рендера (render_test.cs, вариант A работает даже в невидимом приложении):
-    // скрыть плоскости/эскизы, активировать фрейм + ZoomAll + RefreshWindow + пауза,
-    // затем API-5 ksDocument3D.SaveAsToRasterFormat (format=3 PNG). Без активации фрейма растр белый.
+    // Рендер работает и в скрытом КОМПАСе: спрятать вспомогательную геометрию, активировать фрейм,
+    // ZoomAll + RefreshWindow + пауза, затем SaveAsToRasterFormat. Без активации фрейма растр белый.
     static object Render3D(Dictionary<string, object> a)
     {
       ksDocument3D d3 = GetDoc3D();
@@ -965,14 +892,9 @@ namespace KompasMcp.Tools
 
       string p = ToolRegistry.GetStr(a, "path", null);
       if (p == null) p = System.IO.Path.ChangeExtension(partPath ?? Paths.Out("part.m3d"), ".png");
-      // Грабля: КОМПАС резолвит относительные пути от СВОЕГО cwd —
-      // растр уезжает непонятно куда. Только абсолютные пути.
       p = Paths.Abs(p);
 
-      // необязательный стандартный вид: top/front/back/left/right/bottom —
-      // проекция на соответствующую плоскость модели (вид — экранная система
-      // координат: экранная X и экранная Y как векторы в координатах модели).
-      // По умолчанию рендерится текущая (аксонометрия).
+      // стандартный вид: экранные X и Y как векторы в координатах модели; без вида — аксонометрия
       string view = ToolRegistry.GetStr(a, "view", null);
       if (view != null)
       {

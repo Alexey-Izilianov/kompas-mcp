@@ -22,15 +22,15 @@ namespace KompasMcp.Gost
       public double Stiffness;  // жёсткость, Н/мм
       public double H0;         // свободная высота (сжатие, 2 опорных витка): n*t + 2*d
       public int TotalCoils;    // полные витки: n + 2
-      public double WireLen;   // длина проволоки (мм): pi*D*N/sin(угол подъёма) ~ pi*D*sqrt(1+(t/(pi*D))^2)*N
+      public double WireLen;    // длина проволоки (мм): рабочие витки по винтовой линии + 1,5 опорного витка
     }
 
     public static Spring Calc(double d, double D, int n, double? t, double? gMPa)
     {
-      if (d <= 0 || D <= 0 || n <= 0) throw new ArgumentException("d, D, n должны быть > 0");
-      if (D <= d) throw new ArgumentException("Средний диаметр D должен быть больше диаметра проволоки d");
+      if (d <= 0 || D <= 0 || n <= 0) throw new ToolException("d, D, n должны быть > 0");
+      if (D <= d) throw new ToolException("Средний диаметр D должен быть больше диаметра проволоки d");
       double tt = t ?? 0.3 * D; // типовой шаг ~ 0.3*D
-      if (tt < d) throw new ArgumentException("Шаг t должен быть больше диаметра проволоки (иначе витки сомкнуты)");
+      if (tt < d) throw new ToolException("Шаг t должен быть больше диаметра проволоки (иначе витки сомкнуты)");
       double c = D / d;
       // Валь: (4c-1)/(4c-4) + 0.615/c
       double wahl = (4 * c - 1) / (4 * c - 4) + 0.615 / c;
@@ -58,12 +58,6 @@ namespace KompasMcp.Gost
     public static double ShearStress(Spring s, double forceN)
     {
       return s.Wahl * 8.0 * forceN * s.D / (Math.PI * Math.Pow(s.WireD, 3));
-    }
-
-    // Прогиб при силе F (мм)
-    public static double Deflection(Spring s, double forceN)
-    {
-      return forceN / s.Stiffness;
     }
   }
 }

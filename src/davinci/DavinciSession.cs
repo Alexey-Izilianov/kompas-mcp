@@ -1,4 +1,4 @@
-// Сессия копилота (Этап 5): связывает панель Давинчи и ClaudeRunner.
+// Сессия копилота: связывает панель Давинчи и ClaudeRunner.
 // SubmitHandler (UI-поток) ставит сообщение в очередь; runner работает в фоне,
 // события stream-json уходят в панель: текст ответа, шаги инструментов, итог хода.
 // Диалог непрерывный: следующее сообщение резюмится по session_id; Reset — новый диалог.
@@ -21,15 +21,11 @@ namespace KompasMcp.Davinci
     static bool aborted;
     static string lastApiError;  // ошибка API последнего запроса — для индикатора, до успешного ответа
 
-    public static bool Busy { get { lock (Gate) { return runner != null && runner.Running; } } }
-    public static string LastSessionId { get { lock (Gate) { return lastSessionId; } } }
-
     // Индикатор Claude в панели: проверка окружения и API плюс ошибка последнего запроса.
     // Полная проверка (deep) с успешным ответом модели снимает запомненную ошибку.
     public static ServiceState CheckClaude(bool deep)
     {
-      DavinciConfig c = cfg ?? (cfg = DavinciConfig.Load());
-      ServiceState s = ClaudeProbe.Check(c, deep);
+      ServiceState s = ClaudeProbe.Check(Cfg(), deep);
       string err;
       lock (Gate)
       {
@@ -56,18 +52,20 @@ namespace KompasMcp.Davinci
         "(это ТЗ, референсы и справочные материалы юзера) и строй работу с их учётом.\n" +
         "7. 3D-операции возвращают mass_kg — масса ОБЯЗАНА измениться; если тул вернул ошибку «масса не изменилась», " +
         "не повторяй вызов с теми же аргументами — измени эскиз/плоскость/смещение.\n" +
-        "8. После каждой неудачи с плоскостями XOZ/YOZ переключайся на XOY со смещением (offset).";
+        "8. После каждой неудачи с плоскостями XOZ/YOZ переключайся на XOY со смещением (offset).\n" +
+        "9. Чертежи колёс делай готовыми инструментами (gear_drawing, bevel_gear_drawing, worm_wheel_drawing) — " +
+        "они строят разрез по ГОСТ. Если разрез тела вращения с отверстием чертишь вручную: сквозь отверстие " +
+        "видны рёбра торцов и фасок — проводи их сплошной основной линией от верхней половины разреза до нижней; " +
+        "штрихуй только сечение материала, отверстие не штрихуется.";
     }
 
+    static DavinciConfig Cfg() { return cfg ?? (cfg = DavinciConfig.Load()); }
+
     // Рабочий каталог claude: workspace из конфига (по умолчанию mcp-out), относительный —
-    // от папки exe. Вложения юзера — в <workspace>\attach.
+    // от папки exe. Вложения пользователя — в <workspace>\attach.
     static string WorkspaceDir()
     {
-      DavinciConfig c = cfg;
-      if (c == null) { c = DavinciConfig.Load(); cfg = c; }
-      string ws = c.Workspace;
-      if (string.IsNullOrEmpty(ws)) ws = "mcp-out";
-      if (!Path.IsPathRooted(ws)) ws = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ws);
+      string ws = Paths.Abs(string.IsNullOrEmpty(Cfg().Workspace) ? "mcp-out" : Cfg().Workspace);
       Directory.CreateDirectory(ws);
       return ws;
     }
@@ -90,7 +88,7 @@ namespace KompasMcp.Davinci
     // Копия текущих настроек — для страницы настроек панели.
     public static DavinciConfig Config()
     {
-      return (cfg ?? (cfg = DavinciConfig.Load())).Clone();
+      return Cfg().Clone();
     }
 
     // Сохранить настройки и применить со следующего запроса (идущий запрос не трогаем).
@@ -120,24 +118,25 @@ namespace KompasMcp.Davinci
         failed = false;
         aborted = false;
         runner = new ClaudeRunner();
-        runner.Options = new ClaudeRunnerOptions();
-        runner.Options.McpConfigPath = mcpConfigPath;
-        runner.Options.Workspace = WorkspaceDir();
-        runner.Options.SystemPrompt = SystemPrompt();
-        runner.Options.ClaudeCmd = cfg.ClaudeCmd;
-        runner.Options.Model = ClaudeProbe.EffectiveModel(cfg);
-        runner.Options.TimeoutSec = cfg.TimeoutSec;
-        runner.Options.Env = cfg.EffectiveEnv();
+        runner.Options = new ClaudeRunnerOptions
+        {
+          McpConfigPath = mcpConfigPath,
+          Workspace = WorkspaceDir(),
+          SystemPrompt = SystemPrompt(),
+          ClaudeCmd = cfg.ClaudeCmd,
+          Model = ClaudeProbe.EffectiveModel(cfg),
+          TimeoutSec = cfg.TimeoutSec,
+          Env = cfg.EffectiveEnv(),
+        };
         runner.OnEvent += OnEvent;
-        runner.OnStderr += OnStderr;
         runner.OnError += OnError;
         runner.OnExit += OnExit;
+        ClaudeRunner r = runner;
         string resume = lastSessionId;
-        string message = text;
-        // Запуск в фоне: UI-поток не ждёт
-        System.Threading.ThreadPool.QueueUserWorkItem(delegate
+        // запуск в фоне: UI-поток не ждёт
+        ThreadPool.QueueUserWorkItem(delegate
         {
-          try { runner.Run(message, resume); }
+          try { r.Run(text, resume); }
           catch (Exception e)
           {
             Log.Error("session.Run", e);
@@ -155,7 +154,7 @@ namespace KompasMcp.Davinci
       if (r == null || !r.Running) return;
       aborted = true;
       DavinciPanel.Notice("Останавливаю запрос…");
-      System.Threading.ThreadPool.QueueUserWorkItem(delegate { try { r.Stop(); } catch (Exception e) { Log.Error("abort", e); } });
+      ThreadPool.QueueUserWorkItem(delegate { try { r.Stop(); } catch (Exception e) { Log.Error("abort", e); } });
     }
 
     // Новый диалог: следующий запрос начнёт разговор заново. false — идёт запрос.
@@ -219,11 +218,6 @@ namespace KompasMcp.Davinci
       lock (Gate) { lastApiError = raw; }
       DavinciPanel.Error("Claude не ответил: " + ClaudeProbe.Friendly(raw) + (raw.Length <= 300 ? "\n" + raw : ""));
       DavinciPanel.RefreshClaudeStatus();
-    }
-
-    static void OnStderr(string line)
-    {
-      // stderr claude пишется только в лог-файл — шум в панель не тащим
     }
 
     static void OnError(Exception e)

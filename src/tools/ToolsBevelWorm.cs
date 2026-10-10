@@ -8,7 +8,7 @@ namespace KompasMcp.Tools
   // Чертежи конических и червячных передач (ГОСТ 2.402, 2.405, 2.406): главное изображение
   // (осевой разрез колёс; вид червяка с местным разрезом профиля витков), размеры, таблица
   // параметров, технические требования; оформление — DrawKit. Ось детали на листе горизонтальна:
-  // x — вдоль оси, y — радиус. Дуги — ломаными: дуговые методы ksArcBy* рисуют полную окружность.
+  // x — вдоль оси, y — радиус. Дуги горловины — ломаными: они же граница штриховки сечения.
   public static class ToolsBevelWorm
   {
     const string Common = @",
@@ -68,7 +68,7 @@ namespace KompasMcp.Tools
       int z = ToolRegistry.GetInt(a, "z");
       double delta = ToolRegistry.GetDbl(a, "delta");
       double bore = ToolRegistry.GetDbl(a, "bore");
-      BevelBlank b = ToolsGear3D.Bevel(me, z, delta, ToolRegistry.GetDbl(a, "width", 0), bore,
+      BevelBlank b = BevelGears.Blank(me, z, delta, ToolRegistry.GetDbl(a, "width", 0), bore,
         ToolRegistry.GetDbl(a, "hubL", 0.5 * bore));
       BevelWheel w = b.W;
       double xEnd = b.EndZ, rc = b.Te[0];
@@ -80,7 +80,7 @@ namespace KompasMcp.Tools
 
       // сечение: x = z модели, y = r (вершина делительного конуса — слева в начале координат)
       List<double[]> half = Swap(b.Outline());
-      Section(half);
+      SectionWithBore(half, b.Rb);
       foreach (bool m in new[] { false, true })
       {
         DrawKit.Poly(new[] { Swap(b.Fi), Swap(b.Fe) }, 1, false, m);       // впадины — основной в разрезе
@@ -89,8 +89,8 @@ namespace KompasMcp.Tools
       Axis(-4 / s, xEnd + 5 / s);
 
       // размеры: диаметры — справа, длины — снизу, ширина венца — вдоль образующей вершин
-      DrawKit.Dim(xEnd, b.Rb, xEnd, -b.Rb, true, 8, true);
-      if (b.HubL > 0) DrawKit.Dim(xEnd, b.Rh, xEnd, -b.Rh, true, 18, true);
+      DrawKit.Dim(xEnd, b.Rb, xEnd, -b.Rb, true, 11, true);
+      if (b.HubL > 0) DrawKit.Dim(xEnd, b.Rh, xEnd, -b.Rh, true, 21, true);
       DrawKit.Dim(b.Te[1], rc, b.Te[1], -rc, true, (xEnd - b.Te[1]) * s + 30, true);
       DrawKit.Dim(b.Te[1], -rc, b.BackZ, -b.Ge[0], false, -8);
       DrawKit.Dim(b.Ti[1], -b.Ti[0], xEnd, -b.Rb, false, -((rc - b.Ti[0]) * s + 18));
@@ -251,7 +251,7 @@ namespace KompasMcp.Tools
       if (zc < h) half.Add(new[] { zc, rM });
       half.Add(new[] { h, top(h) });
       half.Add(new[] { h, rb });
-      Section(half);
+      SectionWithBore(half, rb);
       double rPitch = g.D1 / 2.0, xp = Math.Min(h + 2 / s, rPitch * 0.98);
       foreach (bool m in new[] { false, true })
       {
@@ -264,7 +264,7 @@ namespace KompasMcp.Tools
       Tools2D.GetDoc().ksLineSeg(-arm, g.A, arm, g.A, 3);
       Tools2D.GetDoc().ksLineSeg(0, g.A - arm, 0, g.A + arm, 3);
 
-      DrawKit.Dim(h, rb, h, -rb, true, 10, true);
+      DrawKit.Dim(h, rb, h, -rb, true, 12, true);
       if (zc < h) DrawKit.Dim(h, rM, h, -rM, true, 22, true);
       else DrawKit.Dim(h, top(h), h, -top(h), true, 22, true);
       DrawKit.Dim(-h, -top(-h), h, -top(h), false, -10);
@@ -300,12 +300,8 @@ namespace KompasMcp.Tools
 
     static WormPair Pair(Dictionary<string, object> a)
     {
-      try
-      {
-        return WormGears.Worm(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
-          ToolRegistry.GetDbl(a, "q"), ToolRegistry.GetInt(a, "z2", 40));
-      }
-      catch (Exception e) { throw new ToolException(e.Message); }
+      return WormGears.Worm(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
+        ToolRegistry.GetDbl(a, "q"), ToolRegistry.GetInt(a, "z2", 40));
     }
 
     static void CreateDrawing(Dictionary<string, object> a, string name)
@@ -324,6 +320,21 @@ namespace KompasMcp.Tools
         DrawKit.Hatch(half, m);
         DrawKit.Poly(half, 1, true, m);
       }
+    }
+
+    // Сечение с фасками отверстия: half начинается и кончается точками на отверстии (x0 < x1),
+    // соседние с ними — торцы.
+    static void SectionWithBore(List<double[]> half, double rb)
+    {
+      double x0 = half[0][0], x1 = half[half.Count - 1][0];
+      double c = Math.Min(Tools2D.BoreChamfer(2 * rb),
+        Math.Min(half[1][1] - rb, half[half.Count - 2][1] - rb) / 3.0);
+      var p = new List<double[]> { new[] { x0 + c, rb }, new[] { x0, rb + c } };
+      p.AddRange(half.GetRange(1, half.Count - 2));
+      p.Add(new[] { x1, rb + c });
+      p.Add(new[] { x1 - c, rb });
+      Section(p);
+      Tools2D.BoreEdges(x0, x1, rb, c);
     }
 
     static void Axis(double x0, double x1) { Tools2D.GetDoc().ksLineSeg(x0, 0, x1, 0, 3); }

@@ -1,11 +1,13 @@
 // Состояние Claude для индикатора панели: найден ли Claude Code, отвечает ли API, какая модель.
-// Окружение собирается так же, как его получит claude (ClaudeRunner): процесс, затем переменные
-// пользователя и машины из реестра, поверх — env из davinci.json.
+// Окружение — как его получит claude (ClaudeRunner): env из davinci.json, затем переменные
+// пользователя и машины из реестра, затем окружение процесса.
 //  - быстрая проверка: claude в PATH + адрес API отвечает по HTTP (любой ответ = связь есть);
 //  - полная (deep): для стороннего ANTHROPIC_BASE_URL — запрос на 1 токен к /v1/messages:
 //    так видны исчерпанный лимит, неизвестная модель, неверный ключ. Для своего входа Claude Code
 //    (подписка) прямой запрос невозможен — только быстрая проверка.
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -27,7 +29,7 @@ namespace KompasMcp.Davinci
 
     public static ServiceState Check(DavinciConfig cfg, bool deep)
     {
-      string cli = FindCli(cfg.ClaudeCmd, cfg);
+      string cli = FindCli(cfg.ClaudeCmd);
       if (cli == null)
         return new ServiceState(false, "Claude Code не найден (" + cfg.ClaudeCmd + ")",
           "Установите Claude Code (npm i -g @anthropic-ai/claude-code) или укажите claudeCmd в davinci.json", true);
@@ -37,12 +39,12 @@ namespace KompasMcp.Davinci
       if (!custom) baseUrl = DefaultApi;
       string where = Where(baseUrl);
       string model = EffectiveModel(cfg);
-      string label = model != null ? model : "модель по умолчанию";
+      string label = model ?? "модель по умолчанию";
       string detail = "claude: " + cli + "\nAPI: " + baseUrl + "\nмодель: " + label;
 
       string reach = Reach(baseUrl);
       if (reach != null)
-        return new ServiceState(false, "Claude: нет связи с " + where + (IsOllama(baseUrl) ? " — запустите Ollama" : ""),
+        return new ServiceState(false, "Claude: нет связи с " + where + (DavinciConfig.IsOllamaUrl(baseUrl) ? " — запустите Ollama" : ""),
           detail + "\n" + reach, true);
 
       if (deep && custom)
@@ -83,29 +85,31 @@ namespace KompasMcp.Davinci
     {
       try
       {
-        var psi = new System.Diagnostics.ProcessStartInfo();
-        psi.FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe";
         string model = EffectiveModel(cfg);
-        psi.Arguments = "/d /s /c \"\"" + cfg.ClaudeCmd + "\" -p \"Ответь одним словом: ок\" --output-format text"
-          + (string.IsNullOrEmpty(model) ? "" : " --model \"" + model + "\"") + "\"";
-        psi.UseShellExecute = false;
-        psi.CreateNoWindow = true;
-        psi.RedirectStandardOutput = true;
-        psi.RedirectStandardError = true;
-        psi.RedirectStandardInput = true;
-        psi.StandardOutputEncoding = Encoding.UTF8;
-        psi.StandardErrorEncoding = Encoding.UTF8;
-        psi.WorkingDirectory = Path.GetTempPath();
+        var psi = new ProcessStartInfo
+        {
+          FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+          Arguments = "/d /s /c \"\"" + cfg.ClaudeCmd + "\" -p \"Ответь одним словом: ок\" --output-format text"
+            + (string.IsNullOrEmpty(model) ? "" : " --model \"" + model + "\"") + "\"",
+          UseShellExecute = false,
+          CreateNoWindow = true,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          RedirectStandardInput = true,
+          StandardOutputEncoding = Encoding.UTF8,
+          StandardErrorEncoding = Encoding.UTF8,
+          WorkingDirectory = Path.GetTempPath(),
+        };
         ClaudeRunner.MergeUserEnvironment(psi);
         foreach (var kv in cfg.EffectiveEnv()) psi.EnvironmentVariables[kv.Key] = kv.Value;
-        using (var p = System.Diagnostics.Process.Start(psi))
+        using (var p = Process.Start(psi))
         {
           p.StandardInput.Close();
           var stderr = p.StandardError.ReadToEndAsync();
           var stdout = p.StandardOutput.ReadToEndAsync();
           if (!p.WaitForExit(90000))
           {
-            try { System.Diagnostics.Process.Start("taskkill", "/T /F /PID " + p.Id).WaitForExit(5000); } catch { }
+            try { Process.Start("taskkill", "/T /F /PID " + p.Id).WaitForExit(5000); } catch { }
             return "нет ответа за 90 с";
           }
           string output = (stdout.Result ?? "").Trim();
@@ -136,13 +140,15 @@ namespace KompasMcp.Davinci
     {
       string v;
       if (cfg.EffectiveEnv().TryGetValue(name, out v) && !string.IsNullOrEmpty(v)) return v;
-      v = RegEnv(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", name);
-      if (!string.IsNullOrEmpty(v)) return v;
       v = RegEnv(Registry.CurrentUser, "Environment", name);
+      if (!string.IsNullOrEmpty(v)) return v;
+      v = RegEnv(Registry.LocalMachine, MachineEnv, name);
       if (!string.IsNullOrEmpty(v)) return v;
       v = Environment.GetEnvironmentVariable(name);
       return string.IsNullOrEmpty(v) ? null : v;
     }
+
+    const string MachineEnv = @"SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
 
     static string RegEnv(RegistryKey hive, string path, string name)
     {
@@ -158,13 +164,13 @@ namespace KompasMcp.Davinci
     }
 
     // claude.cmd в PATH процесса, пользователя и машины (как увидит cmd /c у ClaudeRunner).
-    static string FindCli(string cmd, DavinciConfig cfg)
+    static string FindCli(string cmd)
     {
       if (string.IsNullOrEmpty(cmd)) return null;
       if (Path.IsPathRooted(cmd)) return File.Exists(cmd) ? cmd : null;
       string path = Environment.GetEnvironmentVariable("PATH") + ";"
         + RegEnv(Registry.CurrentUser, "Environment", "PATH") + ";"
-        + RegEnv(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", "PATH");
+        + RegEnv(Registry.LocalMachine, MachineEnv, "PATH");
       string[] names = Path.HasExtension(cmd) ? new[] { cmd } : new[] { cmd + ".cmd", cmd + ".exe", cmd };
       foreach (string dir in path.Split(';'))
       {
@@ -188,11 +194,6 @@ namespace KompasMcp.Davinci
     {
       try { Uri u = new Uri(url); return u.IsDefaultPort ? u.Host : u.Host + ":" + u.Port; }
       catch { return url; }
-    }
-
-    static bool IsOllama(string url)
-    {
-      return url.Contains(":11434") || url.ToLowerInvariant().Contains("ollama");
     }
 
     // null — сервер ответил (любым HTTP-статусом); иначе причина.
@@ -244,19 +245,21 @@ namespace KompasMcp.Davinci
           string text = r.ReadToEnd();
           try
           {
-            var d = Json.Parse(text) as System.Collections.Generic.Dictionary<string, object>;
+            var d = Json.Parse(text) as Dictionary<string, object>;
             object err;
-            if (d != null && d.TryGetValue("error", out err))
-            {
-              var ed = err as System.Collections.Generic.Dictionary<string, object>;
-              if (ed != null) return Convert.ToString(ed.ContainsKey("type") ? ed["type"] : "") + ": " + Convert.ToString(ed.ContainsKey("message") ? ed["message"] : "");
-            }
+            var ed = d != null && d.TryGetValue("error", out err) ? err as Dictionary<string, object> : null;
+            if (ed != null) return Field(ed, "type") + ": " + Field(ed, "message");
           }
           catch { }
           return ((int)((HttpWebResponse)e.Response).StatusCode) + " " + text;
         }
       }
       catch (Exception e) { return e.Message; }
+    }
+
+    static string Field(Dictionary<string, object> d, string key)
+    {
+      return d.ContainsKey(key) ? Convert.ToString(d[key]) : "";
     }
   }
 }

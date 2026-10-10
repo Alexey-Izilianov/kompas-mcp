@@ -8,13 +8,10 @@ using KompasAPI7;
 
 namespace KompasMcp
 {
-  // Жизненный цикл КОМПАС: MCP держит СВОЙ экземпляр (каждый Activator.CreateInstance
-  // поднимает новый процесс KOMPAS.Exe — грабля из memory). PID определяем дифференцированным
-  // снапшотом процессов до/после создания, чтобы при Stop убить только свой.
-  //
-  // Режим attach (флаги --attach --rot-name KOMPAS_DAVINCHI_<PID>): работаем с видимым
-  // КОМПАСом юзера через объект, зарегистрированный библиотекой «Давинчи» в ROT
-  // (Этап 3). Start/Show запрещены, Stop=Detach (только отпускаем COM-ссылки).
+  // Жизненный цикл КОМПАСа. Свой экземпляр: каждый Activator.CreateInstance поднимает новый
+  // KOMPAS.Exe, PID — разницей снимков процессов до и после, чтобы Stop закрыл только свой.
+  // Attach (--attach --rot-name KOMPAS_DAVINCHI_<PID>): КОМПАС пользователя через объект,
+  // зарегистрированный библиотекой «Давинчи» в ROT; Start/Show запрещены, Stop = Detach.
   public static class KompasHost
   {
     static KompasObject kompas;
@@ -339,6 +336,8 @@ namespace KompasMcp
           var info = new Dictionary<string, object>();
           try { info["name"] = d.Name; }
           catch { info["name"] = "?"; }
+          try { if (!string.IsNullOrEmpty(d.PathName)) info["path"] = d.PathName; }
+          catch { }
           docs.Add(info);
         }
       }

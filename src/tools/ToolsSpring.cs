@@ -6,8 +6,8 @@ using KompasMcp.Gost;
 
 namespace KompasMcp.Tools
 {
-  // Пружины (Фаза 6). spring_calc - расчёт ГОСТ 13765 без КОМПАСа;
-  // spring_create - 3D: o3d_cylindricSpiral (траектория) + o3d_bossEvolution (проволока - круг по спирали).
+  // Пружины: spring_calc — расчёт ГОСТ 13765; spring_drawing — чертёж ГОСТ 2.401; spring_create —
+  // 3D: проволока — круг, протянутый кинематически по цилиндрической спирали.
   public static class ToolsSpring
   {
     public static void Register()
@@ -78,37 +78,17 @@ namespace KompasMcp.Tools
 
     // ---- чертёж пружины (ГОСТ 2.401) ----
 
-    // Контур окружности-сечения для штриховки: 24-угольник из ОТРЕЗКОВ.
-    // Грабля КОМПАСа: контур hatch из дуг (ksArcByPoint) ненадёжен — заливка
-    // перетекает наружу блобом при двух и более hatches в одном виде;
-    // контур из отрезков работает стабильно. Отклонение 24-угольника от
-    // окружности при r<10 мм < 0.1 мм — незаметно.
-    static List<object> CircleContour(double xc, double yc, double r)
-    {
-      List<object> contour = new List<object>();
-      int nSeg = 24;
-      double prevX = xc + r, prevY = yc;
-      for (int i = 1; i <= nSeg; i++)
-      {
-        double ang = 2.0 * Math.PI * i / nSeg;
-        double x = xc + r * Math.Cos(ang), y = yc + r * Math.Sin(ang);
-        Dictionary<string, object> seg = new Dictionary<string, object>();
-        seg["type"] = "line";
-        seg["x1"] = prevX; seg["y1"] = prevY; seg["x2"] = x; seg["y2"] = y;
-        contour.Add(seg);
-        prevX = x; prevY = y;
-      }
-      return contour;
-    }
-
-    // Сечение витка: окружность радиуса d/2 с центром (xc, zc).
-    // Грабля: дуги style 1, нарисованные до/после блока штриховки с контуром
-    // из дуг, ломают заливку (перетекает блобом) — поэтому окружность рисуется
-    // ksCircle (style 1), а hatch идёт с outline=false (контур — только внутри блока).
+    // Сечение витка: окружность ksCircle и штриховка по 24-угольнику без обводки. Контур штриховки
+    // из дуг при нескольких сечениях в одном виде даёт перетекание заливки; отклонение
+    // 24-угольника от окружности при r < 10 мм — меньше 0,1 мм.
     static void SpringCoil(ksDocument2D d, double xc, double zc, double wireD, Dictionary<string, object> hatchArgs)
     {
-      d.ksCircle(xc, zc, wireD / 2.0, 1);
-      hatchArgs["contour"] = CircleContour(xc, zc, wireD / 2.0);
+      double r = wireD / 2.0;
+      List<double[]> polygon = new List<double[]>();
+      for (int i = 0; i < 24; i++)
+        polygon.Add(new[] { xc + r * Math.Cos(Math.PI * i / 12), zc + r * Math.Sin(Math.PI * i / 12) });
+      d.ksCircle(xc, zc, r, 1);
+      hatchArgs["contour"] = Tools2D.Loop(polygon, false);
       hatchArgs["outline"] = false;
       hatchArgs["x0"] = xc;
       hatchArgs["y0"] = zc;
@@ -128,8 +108,7 @@ namespace KompasMcp.Tools
       else
       {
         double? tArg = a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
-        try { s = Gost13765.Calc(d, D, n, tArg, null); }
-        catch (ArgumentException e) { throw new ToolException(e.Message); }
+        s = Gost13765.Calc(d, D, n, tArg, null);
       }
       double t = s.T;
       double rOut = (D + d) / 2.0;
@@ -138,16 +117,13 @@ namespace KompasMcp.Tools
       double x0 = ToolRegistry.GetDbl(a, "x", fit[0]);
       double y0 = ToolRegistry.GetDbl(a, "y", fit[1]);
 
-      Dictionary<string, object> createArgs = new Dictionary<string, object>();
-      string path = ToolRegistry.GetStr(a, "path", null);
-      if (path != null) createArgs["path"] = path;
-      createArgs["name"] = "Пружина d" + Tools2D.FmtNum(d) + " D" + Tools2D.FmtNum(D);
+      Dictionary<string, object> createArgs = new Dictionary<string, object> { { "name", "Пружина d" + Tools2D.FmtNum(d) + " D" + Tools2D.FmtNum(D) } };
+      if (a.ContainsKey("path")) createArgs["path"] = ToolRegistry.GetStr(a, "path");
       Tools2D.CreateDrawing(createArgs);
       Tools2D.MakeView(x0, y0, scale, "Разрез пружины");
 
       ksDocument2D d2d = Tools2D.GetDoc();
       double H0 = s.H0;
-      double rHalf = (D + d) / 2.0;      // наружный радиус на виде
 
       // штриховка: один и тот же набор параметров для всех сечений
       Dictionary<string, object> hatchArgs = new Dictionary<string, object>();
@@ -179,38 +155,23 @@ namespace KompasMcp.Tools
       }
 
       // опорные плоскости (сплошная основная)
-      d2d.ksLineSeg(-rHalf, 0, rHalf, 0, 1);
-      d2d.ksLineSeg(-rHalf, H0, rHalf, H0, 1);
+      d2d.ksLineSeg(-rOut, 0, rOut, 0, 1);
+      d2d.ksLineSeg(-rOut, H0, rOut, H0, 1);
       // ось пружины
       d2d.ksLineSeg(0, -6 / scale, 0, H0 + 6 / scale, 3);
 
       // размеры: H0 слева снаружи, ⌀D и ⌀(D+d) снизу, t справа снаружи, ⌀d хордой сечения
-      Dictionary<string, object> dimH0 = new Dictionary<string, object>();
-      dimH0["x1"] = -rHalf; dimH0["y1"] = 0; dimH0["x2"] = -rHalf; dimH0["y2"] = H0;
-      dimH0["ang"] = 90.0; dimH0["dx"] = -12.0; dimH0["dy"] = 0.0;
-      Tools2D.LinDim(dimH0);
+      DrawKit.Dim(-rOut, 0, -rOut, H0, true, -12);
+      DrawKit.Dim(-D / 2.0, 0, D / 2.0, 0, false, -14, true);
+      DrawKit.Dim(-rOut, 0, rOut, 0, false, -30, true);
+      DrawKit.Dim(-rOut, d / 2.0, -D / 2.0 + d / 2.0, d / 2.0, false, -8, true);
+      Tools2D.LinDim(new Dictionary<string, object>
+      {
+        { "x1", rOut }, { "y1", zLastR - t }, { "x2", rOut }, { "y2", zLastR },
+        { "ang", 90.0 }, { "dx", 14.0 }, { "dy", 0.0 }, { "prefix", "t " }
+      });
 
-      Dictionary<string, object> dimD = new Dictionary<string, object>();
-      dimD["x1"] = -D / 2.0; dimD["y1"] = 0; dimD["x2"] = D / 2.0; dimD["y2"] = 0;
-      dimD["ang"] = 0.0; dimD["dx"] = 0.0; dimD["dy"] = -14.0; dimD["sign"] = 1;
-      Tools2D.LinDim(dimD);
-
-      Dictionary<string, object> dimDa = new Dictionary<string, object>();
-      dimDa["x1"] = -rHalf; dimDa["y1"] = 0; dimDa["x2"] = rHalf; dimDa["y2"] = 0;
-      dimDa["ang"] = 0.0; dimDa["dx"] = 0.0; dimDa["dy"] = -30.0; dimDa["sign"] = 1;
-      Tools2D.LinDim(dimDa);
-
-      Dictionary<string, object> dimT = new Dictionary<string, object>();
-      dimT["x1"] = D / 2.0 + d / 2.0; dimT["y1"] = zLastR - t; dimT["x2"] = D / 2.0 + d / 2.0; dimT["y2"] = zLastR;
-      dimT["ang"] = 90.0; dimT["dx"] = 14.0; dimT["dy"] = 0.0; dimT["prefix"] = "t ";
-      Tools2D.LinDim(dimT);
-
-      Dictionary<string, object> dimW = new Dictionary<string, object>();
-      dimW["x1"] = -D / 2.0 - d / 2.0; dimW["y1"] = d / 2.0; dimW["x2"] = -D / 2.0 + d / 2.0; dimW["y2"] = d / 2.0;
-      dimW["ang"] = 0.0; dimW["dx"] = 0.0; dimW["dy"] = -8.0; dimW["sign"] = 1;
-      Tools2D.LinDim(dimW);
-
-      if (load != null) TestDiagram(d2d, s, load, rHalf, scale);
+      if (load != null) TestDiagram(d2d, s, load, rOut, scale);
 
       // по ГОСТ 2.401 характеристики витков — в технических требованиях
       Dictionary<string, object> res = new Dictionary<string, object>();
@@ -261,15 +222,11 @@ namespace KompasMcp.Tools
       if (type != "compression" && type != "extension") throw new ToolException("type: compression или extension");
       bool extension = type == "extension";
       double? t = extension ? (double?)d : a.ContainsKey("t") ? (double?)ToolRegistry.GetDbl(a, "t") : null;
-      Gost13765.Spring s;
-      try { s = Gost13765.Calc(d, D, n, t, null); }
-      catch (ArgumentException e) { throw new ToolException(e.Message); }
+      Gost13765.Spring s = Gost13765.Calc(d, D, n, t, null);
 
-      Dictionary<string, object> createArgs = new Dictionary<string, object>();
-      createArgs["name"] = ToolRegistry.GetStr(a, "name",
-        (extension ? "Пружина растяжения d" : "Пружина d") + Tools2D.FmtNum(d) + " D" + Tools2D.FmtNum(D));
-      string path = ToolRegistry.GetStr(a, "path", null);
-      if (path != null) createArgs["path"] = path;
+      Dictionary<string, object> createArgs = new Dictionary<string, object>
+        { { "name", ToolRegistry.GetStr(a, "name", (extension ? "Пружина растяжения d" : "Пружина d") + Tools2D.FmtNum(d) + " D" + Tools2D.FmtNum(D)) } };
+      if (a.ContainsKey("path")) createArgs["path"] = ToolRegistry.GetStr(a, "path");
       Tools3D.CreatePart(createArgs);
 
       Dictionary<string, object> res = new Dictionary<string, object>();
@@ -278,9 +235,7 @@ namespace KompasMcp.Tools
 
       Tools3D.SetMaterialOp(new Dictionary<string, object>
         { { "name", "Сталь пружинная 60С2А ГОСТ 14963-78" }, { "density", 7850.0 } });
-      Dictionary<string, object> saveArgs = new Dictionary<string, object>();
-      if (path != null) saveArgs["path"] = path;
-      Tools3D.SavePart(saveArgs);
+      Tools3D.SavePart(new Dictionary<string, object>());
       res["saved"] = Tools3D.PartPath;
       res["type"] = type;
       res["stiffness_N_per_mm"] = Math.Round(s.Stiffness, 3);
@@ -336,39 +291,33 @@ namespace KompasMcp.Tools
     // круг проволоки в осевой плоскости XOZ в точке (x, z) — начало спирали (y эскиза = −z)
     static ksEntity WireSection(double x, double z, double d)
     {
-      Tools3D.Sketch(new Dictionary<string, object>
-      {
-        { "plane", "XOZ" },
-        { "elements", new List<object> { new Dictionary<string, object>
-          { { "type", "circle" }, { "xc", x }, { "yc", -z }, { "r", d / 2.0 } } } }
-      });
+      CircleSketch("XOZ", x, -z, d / 2.0, 0);
       return Tools3D.LastSketch;
     }
 
+    // прямой участок зацепа: круг проволоки, выдавленный от z0 на len
     static void Leg(double x, double z0, double len, double d, bool baseOp)
     {
-      Dictionary<string, object> sk = new Dictionary<string, object>
-      {
-        { "plane", "XOY" },
-        { "elements", new List<object> { new Dictionary<string, object>
-          { { "type", "circle" }, { "xc", x }, { "yc", 0.0 }, { "r", d / 2.0 } } } }
-      };
-      if (z0 != 0) sk["offset"] = z0;
-      Tools3D.Sketch(sk);
+      CircleSketch("XOY", x, 0, d / 2.0, z0);
       Tools3D.Extrude(new Dictionary<string, object> { { "depth", len }, { "base", baseOp } }, cut: false);
     }
 
+    // шлифовка торца: вырез кругом больше пружины на глубину d от плоскости z в сторону dir
     static void Grind(double D, double d, double z, int dir)
+    {
+      CircleSketch("XOY", 0, 0, D, z);
+      Tools3D.Extrude(new Dictionary<string, object> { { "mode", "blind" }, { "depth", d }, { "direction", dir } }, cut: true);
+    }
+
+    static void CircleSketch(string plane, double xc, double yc, double r, double offset)
     {
       Dictionary<string, object> sk = new Dictionary<string, object>
       {
-        { "plane", "XOY" },
-        { "elements", new List<object> { new Dictionary<string, object>
-          { { "type", "circle" }, { "xc", 0.0 }, { "yc", 0.0 }, { "r", D } } } }
+        { "plane", plane },
+        { "elements", new List<object> { new Dictionary<string, object> { { "type", "circle" }, { "xc", xc }, { "yc", yc }, { "r", r } } } }
       };
-      if (z != 0) sk["offset"] = z;
+      if (offset != 0) sk["offset"] = offset;
       Tools3D.Sketch(sk);
-      Tools3D.Extrude(new Dictionary<string, object> { { "mode", "blind" }, { "depth", d }, { "direction", dir } }, cut: true);
     }
   }
 }

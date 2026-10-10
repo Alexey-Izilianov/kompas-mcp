@@ -8,21 +8,8 @@ namespace KompasMcp
   public static class Log
   {
     static readonly object Gate = new object();
-    static readonly UTF8Encoding encoding = new UTF8Encoding(false); // один на все записи
-    static string path;
-
-    public static string Path
-    {
-      get
-      {
-        if (path == null)
-        {
-          string dir = AppDomain.CurrentDomain.BaseDirectory;
-          path = System.IO.Path.Combine(dir, "kompas-mcp.log");
-        }
-        return path;
-      }
-    }
+    static readonly UTF8Encoding encoding = new UTF8Encoding(false);
+    public static readonly string Path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "kompas-mcp.log");
 
     public static void Write(string message)
     {

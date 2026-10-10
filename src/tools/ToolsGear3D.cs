@@ -87,13 +87,8 @@ namespace KompasMcp.Tools
 
     static WormPair Pair(Dictionary<string, object> a, int z2Default)
     {
-      try
-      {
-        return WormGears.Worm(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
-          ToolRegistry.GetDbl(a, "q"), ToolRegistry.GetInt(a, "z2", z2Default));
-      }
-      catch (ToolException) { throw; }
-      catch (Exception e) { throw new ToolException(e.Message); }
+      return WormGears.Worm(ToolRegistry.GetDbl(a, "m"), ToolRegistry.GetInt(a, "z1"),
+        ToolRegistry.GetDbl(a, "q"), ToolRegistry.GetInt(a, "z2", z2Default));
     }
 
     static bool RightHand(Dictionary<string, object> a)
@@ -132,7 +127,7 @@ namespace KompasMcp.Tools
       Tools3D.CircularCopyZ(groove, g.Z1);
 
       SetMaterial("Сталь 40Х ГОСТ 4543-2016", 7820);
-      object saved = Save(a);
+      object saved = Save();
       return new Dictionary<string, object>
       {
         { "saved", saved },
@@ -201,7 +196,7 @@ namespace KompasMcp.Tools
       Tools3D.Extrude(new Dictionary<string, object> { { "mode", "through" } }, cut: true);
 
       SetMaterial("БрО10Ф1 ГОСТ 613-79", 8760);
-      object saved = Save(a);
+      object saved = Save();
       return new Dictionary<string, object>
       {
         { "saved", saved },
@@ -246,21 +241,15 @@ namespace KompasMcp.Tools
 
     // ================== коническое колесо ==================
 
-    internal static BevelBlank Bevel(double me, int z, double deltaDeg, double width, double bore, double hubL)
-    {
-      try { return BevelGears.Blank(me, z, deltaDeg, width, bore, hubL); }
-      catch (Exception e) { throw new ToolException(e.Message); }
-    }
-
     static object BevelWheel3D(Dictionary<string, object> a)
     {
       double me = ToolRegistry.GetDbl(a, "me");
       int z = ToolRegistry.GetInt(a, "z");
       double bore = ToolRegistry.GetDbl(a, "bore");
-      BevelBlank b = Bevel(me, z, ToolRegistry.GetDbl(a, "delta"), ToolRegistry.GetDbl(a, "width", 0), bore,
+      BevelBlank b = BevelGears.Blank(me, z, ToolRegistry.GetDbl(a, "delta"), ToolRegistry.GetDbl(a, "width", 0), bore,
         ToolRegistry.GetDbl(a, "hubL", 0.5 * bore));
       BuildBevel(a, b, "Колесо коническое me" + Tools2D.FmtNum(me) + " z" + z);
-      object saved = Save(a);
+      object saved = Save();
       BevelWheel w = b.W;
       return new Dictionary<string, object>
       {
@@ -351,13 +340,13 @@ namespace KompasMcp.Tools
       string wheelPath = System.IO.Path.Combine(dir, "bevel_wheel_" + tag + ".m3d");
 
       double bore1 = ToolRegistry.GetDbl(a, "bore1"), bore2 = ToolRegistry.GetDbl(a, "bore2");
-      BevelBlank L1 = Bevel(me, z1, delta1, width, bore1, 0.5 * bore1);
-      BevelBlank L2 = Bevel(me, z2, 90.0 - delta1, width, bore2, 0.5 * bore2);
+      BevelBlank L1 = BevelGears.Blank(me, z1, delta1, width, bore1, 0.5 * bore1);
+      BevelBlank L2 = BevelGears.Blank(me, z2, 90.0 - delta1, width, bore2, 0.5 * bore2);
       BuildBevel(new Dictionary<string, object> { { "path", pinionPath } }, L1, "Шестерня коническая z" + z1);
-      Save(new Dictionary<string, object> { { "path", pinionPath } });
+      Save();
       Tools3D.CloseCurrentDoc();
       BuildBevel(new Dictionary<string, object> { { "path", wheelPath } }, L2, "Колесо коническое z" + z2);
-      Save(new Dictionary<string, object> { { "path", wheelPath } });
+      Save();
       Tools3D.CloseCurrentDoc();
 
       CreateAsm(asmPath, ToolRegistry.GetStr(a, "name", "Передача коническая " + tag.Replace('_', ' ')));
@@ -379,9 +368,7 @@ namespace KompasMcp.Tools
 
     static string AsmPath(Dictionary<string, object> a, string defName)
     {
-      string path = ToolRegistry.GetStr(a, "path", null);
-      if (path == null) return Paths.Out(defName);
-      return Paths.Abs(path);
+      return Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out(defName)));
     }
 
     static void CreateAsm(string path, string name)
@@ -448,12 +435,10 @@ namespace KompasMcp.Tools
       Tools3D.SetMaterialOp(new Dictionary<string, object> { { "name", name }, { "density", density } });
     }
 
-    static object Save(Dictionary<string, object> a)
+    // путь задан при создании детали (CreatePart)
+    static object Save()
     {
-      Dictionary<string, object> s = new Dictionary<string, object>();
-      string path = ToolRegistry.GetStr(a, "path", null);
-      if (path != null) s["path"] = path;
-      return ((Dictionary<string, object>)Tools3D.SavePart(s))["saved"];
+      return ((Dictionary<string, object>)Tools3D.SavePart(new Dictionary<string, object>()))["saved"];
     }
   }
 }

@@ -50,8 +50,7 @@ namespace KompasMcp.Gost
     // Болт М(12) => d=12. Возвращает null, если номинала нет в таблице.
     public static HexBolt Bolt(double d)
     {
-      double dd = Math.Round(d);
-      switch ((int)dd)
+      switch ((int)Math.Round(d))
       {
         case 6: return new HexBolt { D = 6, S = 10, E = 11.05, K = 4.0, B = 18 };
         case 8: return new HexBolt { D = 8, S = 13, E = 14.38, K = 5.3, B = 22 };
@@ -72,8 +71,7 @@ namespace KompasMcp.Gost
 
     public static HexNut Nut(double d)
     {
-      double dd = Math.Round(d);
-      switch ((int)dd)
+      switch ((int)Math.Round(d))
       {
         case 6: return new HexNut { D = 6, S = 10, E = 11.05, M = 5.2 };
         case 8: return new HexNut { D = 8, S = 13, E = 14.38, M = 6.8 };
@@ -94,8 +92,7 @@ namespace KompasMcp.Gost
 
     public static Washer WasherFor(double d)
     {
-      double dd = Math.Round(d);
-      switch ((int)dd)
+      switch ((int)Math.Round(d))
       {
         case 6: return new Washer { D = 6, D1 = 6.4, D2 = 12.0, S = 1.6 };
         case 8: return new Washer { D = 8, D1 = 8.4, D2 = 16.0, S = 2.0 };
@@ -114,50 +111,41 @@ namespace KompasMcp.Gost
       }
     }
 
-    // ГОСТ 8338-75, лёгкая (200) и средняя (300) серии. Код: посадочный диаметр = (code % 100)*5,
-    // напр. 208 => d=40, D=80, B=18. Масса и диаметр шарика — справочные.
+    // ГОСТ 8338-75, лёгкая (200) и средняя (300) серии. Посадочный диаметр по двум последним
+    // цифрам кода: 00..03 — 10, 12, 15, 17 мм, далее ×5 (208 => d = 40). Масса и шарик — справочные.
     public static BallBearing Bearing(int code)
     {
-      double bore = (code % 100) * 5.0;
+      int n = code % 100;
+      double bore = n < 4 ? new[] { 10.0, 12, 15, 17 }[n] : n * 5.0;
       double dOuter, width, mass, ball;
-      if (code >= 300 && code < 400)
+      switch (code)
       {
-        switch (code)
-        {
-          case 305: dOuter = 62; width = 17; mass = 0.229; ball = 11.5; break;
-          case 306: dOuter = 72; width = 19; mass = 0.345; ball = 12.7; break;
-          case 307: dOuter = 80; width = 21; mass = 0.414; ball = 13.49; break;
-          case 308: dOuter = 90; width = 23; mass = 0.63; ball = 15.08; break;
-          case 309: dOuter = 100; width = 25; mass = 0.83; ball = 17.46; break;
-          case 310: dOuter = 110; width = 27; mass = 1.08; ball = 19.05; break;
-          case 311: dOuter = 120; width = 29; mass = 1.37; ball = 20.64; break;
-          case 312: dOuter = 130; width = 31; mass = 1.71; ball = 22.23; break;
-          case 313: dOuter = 140; width = 33; mass = 2.11; ball = 23.81; break;
-          case 314: dOuter = 150; width = 35; mass = 2.60; ball = 25.4; break;
-          default: return null;
-        }
-      }
-      else
-      {
-        switch (code)
-        {
-          case 201: dOuter = 32; width = 10; mass = 0.040; ball = 7.14; break;
-          case 202: dOuter = 35; width = 11; mass = 0.056; ball = 7.94; break;
-          case 203: dOuter = 40; width = 12; mass = 0.072; ball = 8.73; break;
-          case 204: dOuter = 47; width = 14; mass = 0.110; ball = 9.53; break;
-          case 205: dOuter = 52; width = 15; mass = 0.130; ball = 10.32; break;
-          case 206: dOuter = 62; width = 16; mass = 0.206; ball = 11.11; break;
-          case 207: dOuter = 72; width = 17; mass = 0.288; ball = 11.51; break;
-          case 208: dOuter = 80; width = 18; mass = 0.368; ball = 12.7; break;
-          case 209: dOuter = 85; width = 19; mass = 0.414; ball = 12.7; break;
-          case 210: dOuter = 90; width = 20; mass = 0.455; ball = 14.29; break;
-          case 211: dOuter = 100; width = 21; mass = 0.60; ball = 14.29; break;
-          case 212: dOuter = 110; width = 22; mass = 0.78; ball = 15.88; break;
-          case 213: dOuter = 120; width = 23; mass = 0.99; ball = 16.67; break;
-          case 214: dOuter = 125; width = 24; mass = 1.08; ball = 17.46; break;
-          case 215: dOuter = 130; width = 25; mass = 1.18; ball = 17.46; break;
-          default: return null;
-        }
+        case 201: dOuter = 32; width = 10; mass = 0.040; ball = 7.14; break;
+        case 202: dOuter = 35; width = 11; mass = 0.056; ball = 7.94; break;
+        case 203: dOuter = 40; width = 12; mass = 0.072; ball = 8.73; break;
+        case 204: dOuter = 47; width = 14; mass = 0.110; ball = 9.53; break;
+        case 205: dOuter = 52; width = 15; mass = 0.130; ball = 10.32; break;
+        case 206: dOuter = 62; width = 16; mass = 0.206; ball = 11.11; break;
+        case 207: dOuter = 72; width = 17; mass = 0.288; ball = 11.51; break;
+        case 208: dOuter = 80; width = 18; mass = 0.368; ball = 12.7; break;
+        case 209: dOuter = 85; width = 19; mass = 0.414; ball = 12.7; break;
+        case 210: dOuter = 90; width = 20; mass = 0.455; ball = 14.29; break;
+        case 211: dOuter = 100; width = 21; mass = 0.60; ball = 14.29; break;
+        case 212: dOuter = 110; width = 22; mass = 0.78; ball = 15.88; break;
+        case 213: dOuter = 120; width = 23; mass = 0.99; ball = 16.67; break;
+        case 214: dOuter = 125; width = 24; mass = 1.08; ball = 17.46; break;
+        case 215: dOuter = 130; width = 25; mass = 1.18; ball = 17.46; break;
+        case 305: dOuter = 62; width = 17; mass = 0.229; ball = 11.5; break;
+        case 306: dOuter = 72; width = 19; mass = 0.345; ball = 12.7; break;
+        case 307: dOuter = 80; width = 21; mass = 0.414; ball = 13.49; break;
+        case 308: dOuter = 90; width = 23; mass = 0.63; ball = 15.08; break;
+        case 309: dOuter = 100; width = 25; mass = 0.83; ball = 17.46; break;
+        case 310: dOuter = 110; width = 27; mass = 1.08; ball = 19.05; break;
+        case 311: dOuter = 120; width = 29; mass = 1.37; ball = 20.64; break;
+        case 312: dOuter = 130; width = 31; mass = 1.71; ball = 22.23; break;
+        case 313: dOuter = 140; width = 33; mass = 2.11; ball = 23.81; break;
+        case 314: dOuter = 150; width = 35; mass = 2.60; ball = 25.4; break;
+        default: return null;
       }
       return new BallBearing
       {
@@ -169,12 +157,6 @@ namespace KompasMcp.Gost
         BallDia = ball,
         MassKg = mass
       };
-    }
-
-    // Площадь правильного шестиугольника по радиусу описанной окружности
-    public static double HexArea(double rOuter)
-    {
-      return 2.598076211 * rOuter * rOuter;
     }
 
     // Вершины шестиугольника (плоская грань сверху: вершины под углами 30+60i)

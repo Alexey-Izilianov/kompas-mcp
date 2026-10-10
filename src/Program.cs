@@ -30,7 +30,7 @@ namespace KompasMcp
         else Console.Write(text);
         return 0;
       }
-      Log.Write("=== kompas-mcp " + Rpc.ServerVersion + " started, pid=" + ProcessId() + " ===");
+      Log.Write("=== kompas-mcp " + Rpc.ServerVersion + " started, pid=" + System.Diagnostics.Process.GetCurrentProcess().Id + " ===");
       KompasHost.ConfigureFromArgs(args);
       if (HasFlag(args, "--panel")) return PanelMain();
       StdioLoop();
@@ -40,16 +40,10 @@ namespace KompasMcp
       return 0;
     }
 
-    static bool HasFlag(string[] args, string flag)
-    {
-      for (int i = 0; i < args.Length; i++)
-        if (args[i] == flag) return true;
-      return false;
-    }
+    static bool HasFlag(string[] args, string flag) { return Array.IndexOf(args, flag) >= 0; }
 
-    // Панельный режим: процесс порождён меню «Давинчи → Панель» из КОМПАСа
-    // (stdin у него может отсутствовать), поэтому живём, пока открыта панель,
-    // а stdio-луп обслуживаем в фоне.
+    // Панельный режим: процесс запущен меню «Давинчи → Панель» из КОМПАСа и stdin может
+    // отсутствовать, поэтому живём, пока открыта панель, а stdio-луп крутится в фоне.
     static int PanelMain()
     {
       Log.Write("panel: flag --panel, открываю панель Давинчи");
@@ -101,11 +95,7 @@ namespace KompasMcp
               Log.Error("outer handle", e);
               response = null;
             }
-            if (response != null)
-            {
-              stdout.WriteLine(response);
-              stdout.Flush();
-            }
+            if (response != null) stdout.WriteLine(response);   // AutoFlush
           }
         }
       }
@@ -114,11 +104,6 @@ namespace KompasMcp
         // в панельном режиме stdin может отсутствовать вовсе — панель не трогаем
         Log.Error("stdio loop", e);
       }
-    }
-
-    static int ProcessId()
-    {
-      return System.Diagnostics.Process.GetCurrentProcess().Id;
     }
   }
 }
