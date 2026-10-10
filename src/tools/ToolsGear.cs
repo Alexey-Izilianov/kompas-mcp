@@ -177,8 +177,7 @@ namespace KompasMcp.Tools
         throw new ToolException("Ширина венца должна быть 0..500");
 
       string asmPath = ToolRegistry.GetStr(a, "path", null);
-      if (asmPath != null && !System.IO.Path.IsPathRooted(asmPath))
-        asmPath = System.IO.Path.GetFullPath(asmPath);
+      if (asmPath != null) asmPath = KompasMcp.Paths.Abs(asmPath);
       if (asmPath == null) asmPath = KompasMcp.Paths.Out("gear_pair.a3d");
       string dir = System.IO.Path.GetDirectoryName(asmPath);
       string nameOfGears = "m" + Tools2D.FmtNum(m);

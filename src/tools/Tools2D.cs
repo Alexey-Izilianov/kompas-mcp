@@ -339,7 +339,7 @@ namespace KompasMcp.Tools
     // КОМПАС резолвит относительные пути от своего cwd, сервер — от своего; единая точка правды — абсолютные пути.
     static string AbsPath(string p)
     {
-      return Path.GetFullPath(p);
+      return Paths.Abs(p);
     }
 
     static Dictionary<string, object> Id(string type, int obj)
@@ -1000,8 +1000,8 @@ namespace KompasMcp.Tools
       ILayoutSheet sheet = (ILayoutSheet)doc7.LayoutSheets.ItemByNumber[1];
       IStamp stamp = (IStamp)sheet.Stamp;
 
-      SetStamp(stamp, (int)ksStampEnum.ksStPartNumber, ToolRegistry.GetStr(a, "partNumber", null));
-      SetStamp(stamp, (int)ksStampEnum.ksStDescription, ToolRegistry.GetStr(a, "description", null));
+      SetStamp(stamp, StampDesignation, ToolRegistry.GetStr(a, "partNumber", null));
+      SetStamp(stamp, StampName, ToolRegistry.GetStr(a, "description", null));
       SetStamp(stamp, (int)ksStampEnum.ksStMaterial, ToolRegistry.GetStr(a, "material", null));
       SetStamp(stamp, (int)ksStampEnum.ksStMass, ToolRegistry.GetStr(a, "mass", null));
       SetStamp(stamp, (int)ksStampEnum.ksStScale, ToolRegistry.GetStr(a, "scale", null));
@@ -1011,6 +1011,11 @@ namespace KompasMcp.Tools
 
       return new Dictionary<string, object> { { "stamp", true } };
     }
+
+    // Имена ksStampEnum обманчивы (SDK): ksStPartNumber = 1 — графа 1 «Наименование изделия»,
+    // ksStDescription = 2 — графа 2 «Обозначение документа», её КОМПАС повторяет в графе 26.
+    internal const int StampName = (int)ksStampEnum.ksStPartNumber;
+    internal const int StampDesignation = (int)ksStampEnum.ksStDescription;
 
     static void SetStamp(IStamp stamp, int column, string value)
     {

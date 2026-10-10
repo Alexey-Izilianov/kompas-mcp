@@ -59,6 +59,7 @@ namespace KompasMcp.Tools
         "Внимание: локальные оси эскиза на XOZ/YOZ повёрнуты относительно глобальных X/Y — при сомнениях используйте XOY со смещением (offset).",
         @"{""type"":""object"",""properties"":{
 ""plane"":{""type"":""string"",""enum"":[""XOY"",""XOZ"",""YOZ""],""description"":""По умолчанию XOY""},
+""offset"":{""type"":""number"",""description"":""Смещение плоскости эскиза от plane по её нормали, мм (знак — сторона); по умолчанию 0""},
 ""elements"":{""type"":""array"",""items"":{""type"":""object""}}},
 ""required"":[""elements""]}",
         a => Sketch(a));
@@ -237,7 +238,7 @@ namespace KompasMcp.Tools
       part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
       if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null для сборки");
       SetIdentity(a);
-      partPath = ToolRegistry.GetStr(a, "path", Paths.Out("assembly.a3d"));
+      partPath = Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("assembly.a3d")));
       lastSketch = null;
       sketches.Clear();
       sketchSeq = 0;
@@ -250,7 +251,7 @@ namespace KompasMcp.Tools
     // после чего slot и есть вставленный компонент.
     internal static ksPart AddComponentImpl(string path, bool external)
     {
-      if (!System.IO.Path.IsPathRooted(path)) path = System.IO.Path.GetFullPath(path);
+      path = Paths.Abs(path);
       if (!System.IO.File.Exists(path)) throw new ToolException("Файл компонента не найден: " + path);
       ksPart slot = (ksPart)GetDoc3D().GetPart((int)Part_Type.pNew_Part);
       if (slot == null) throw new ToolException("GetPart(pNew_Part) вернул null (не сборка?)");
@@ -412,7 +413,7 @@ namespace KompasMcp.Tools
       string p = ToolRegistry.GetStr(a, "path", null);
       if (p == null) p = partPath;
       if (p == null) throw new ToolException("Нет пути: укажите path или создайте деталь через create_part");
-      if (!System.IO.Path.IsPathRooted(p)) p = System.IO.Path.GetFullPath(p); // относительный SaveAs молча не сохраняет
+      p = Paths.Abs(p); // относительный SaveAs молча не сохраняет
       // в несуществующую папку SaveAs тоже молча ничего не пишет
       System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p));
       GetDoc7().SaveAs(p);
@@ -489,7 +490,7 @@ namespace KompasMcp.Tools
       part = (ksPart)doc3D.GetPart((int)Part_Type.pTop_Part);
       if (part == null) throw new ToolException("GetPart(pTop_Part) вернул null");
       SetIdentity(a);
-      partPath = ToolRegistry.GetStr(a, "path", Paths.Out("part.m3d"));
+      partPath = Paths.Abs(ToolRegistry.GetStr(a, "path", Paths.Out("part.m3d")));
       lastSketch = null;
       sketches.Clear();
       return new Dictionary<string, object> { { "created", true }, { "name", part.name } };
@@ -498,7 +499,7 @@ namespace KompasMcp.Tools
     internal static object OpenPart(string path)
     {
       if (path == null || path.Length == 0) throw new ToolException("Нет path");
-      if (!System.IO.Path.IsPathRooted(path)) path = System.IO.Path.GetFullPath(path);
+      path = Paths.Abs(path);
       IApplication app7 = KompasHost.App7;
       object docObj = app7.Documents.Open(path, false, false);
       if (docObj == null) throw new ToolException("Documents.Open вернул null: " + path);
@@ -966,7 +967,7 @@ namespace KompasMcp.Tools
       if (p == null) p = System.IO.Path.ChangeExtension(partPath ?? Paths.Out("part.m3d"), ".png");
       // Грабля: КОМПАС резолвит относительные пути от СВОЕГО cwd —
       // растр уезжает непонятно куда. Только абсолютные пути.
-      if (!System.IO.Path.IsPathRooted(p)) p = System.IO.Path.GetFullPath(p);
+      p = Paths.Abs(p);
 
       // необязательный стандартный вид: top/front/back/left/right/bottom —
       // проекция на соответствующую плоскость модели (вид — экранная система

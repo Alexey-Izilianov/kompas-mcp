@@ -117,20 +117,20 @@ namespace KompasMcp.Tools
         IKompasDocument2D doc7 = (IKompasDocument2D)KompasHost.App7.ActiveDocument;
         if (doc7 == null) return;
         IStamp stamp = (IStamp)((ILayoutSheet)doc7.LayoutSheets.ItemByNumber[1]).Stamp;
-        Set(stamp, ksStampEnum.ksStDescription, description);
-        Set(stamp, ksStampEnum.ksStPartNumber, designation);
-        Set(stamp, ksStampEnum.ksStMaterial, material);
-        Set(stamp, ksStampEnum.ksStScale, ScaleText(scale));
-        Set(stamp, ksStampEnum.ksStSheetNumber, "1");
-        Set(stamp, ksStampEnum.ksStNumberOfSheets, "1");
+        Set(stamp, Tools2D.StampName, description);
+        Set(stamp, Tools2D.StampDesignation, designation);
+        Set(stamp, (int)ksStampEnum.ksStMaterial, material);
+        Set(stamp, (int)ksStampEnum.ksStScale, ScaleText(scale));
+        Set(stamp, (int)ksStampEnum.ksStSheetNumber, "1");
+        Set(stamp, (int)ksStampEnum.ksStNumberOfSheets, "1");
         stamp.Update();
       }
       catch (Exception e) { Log.Write("штамп: " + e.Message); }
     }
 
-    static void Set(IStamp stamp, ksStampEnum cell, string value)
+    static void Set(IStamp stamp, int cell, string value)
     {
-      if (!string.IsNullOrEmpty(value)) stamp.Text[(int)cell].Str = value;
+      if (!string.IsNullOrEmpty(value)) stamp.Text[cell].Str = value;
     }
 
     // ---- геометрия в текущем виде ----

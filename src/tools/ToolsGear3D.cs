@@ -381,7 +381,7 @@ namespace KompasMcp.Tools
     {
       string path = ToolRegistry.GetStr(a, "path", null);
       if (path == null) return Paths.Out(defName);
-      return System.IO.Path.IsPathRooted(path) ? path : System.IO.Path.GetFullPath(path);
+      return Paths.Abs(path);
     }
 
     static void CreateAsm(string path, string name)

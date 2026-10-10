@@ -53,7 +53,7 @@ namespace KompasMcp.Tools
 
     static object AssemblyDrawing(Dictionary<string, object> a)
     {
-      string src = Path.GetFullPath(ToolRegistry.GetStr(a, "assembly"));
+      string src = Paths.Abs(ToolRegistry.GetStr(a, "assembly"));
       if (!File.Exists(src)) throw new ToolException("Нет файла сборки: " + src);
       List<string> views = ViewList(a);
 
@@ -353,7 +353,7 @@ namespace KompasMcp.Tools
       };
       string png = ToolRegistry.GetStr(a, "png", null);
       if (!string.IsNullOrEmpty(png))
-        args["png"] = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(png)),
+        args["png"] = Path.Combine(Path.GetDirectoryName(Paths.Abs(png)),
           Path.GetFileNameWithoutExtension(png) + "_spec.png");
       return ToolRegistry.Find("spec_drawing").Handler(args);
     }

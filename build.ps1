@@ -15,8 +15,8 @@ if (-not (Test-Path (Join-Path $libDir "Kompas6API5.dll"))) {
 }
 
 $out = Join-Path $dir "KompasMcp.exe"
-# COM-библиотека Давинчи живёт в davinci\src\DavinciLib.cs (сборка отдельно,
-# davinci\build-lib.ps1) и в сервер не входит — тянет interop KompasLibrary.dll
+# библиотека КОМПАСа «Давинчи» (davinci\src) собирается отдельно — davinci\build-native.ps1 —
+# и в сервер не входит: тянет interop KompasLibrary.dll
 $sources = Get-ChildItem -Recurse (Join-Path $dir "src") -Filter *.cs | ForEach-Object { $_.FullName }
 $refs = @()
 foreach ($n in @("Kompas6API5.dll","KompasAPI7.dll","Kompas6Constants.dll","Kompas6Constants3D.dll","KAPITypes.dll")) {

@@ -111,6 +111,19 @@ namespace KompasMcp
       GC.WaitForPendingFinalizers();
     }
 
+    // Выход сервера (клиент закрыл stdin): свой скрытый экземпляр закрываем — без окна
+    // его потом не найти; показанный через kompas_show оставляем пользователю.
+    public static void Shutdown()
+    {
+      if (kompas == null) return;
+      if (attach) { Detach(); return; }
+      bool visible = false;
+      try { visible = App7.Visible; } catch { }
+      if (!visible) { Stop(); return; }
+      Log.Write("exit: окно КОМПАСа показано — оставляю его открытым, pid=" + pid);
+      ReleaseRefs();
+    }
+
     // ---- attach (Давинчи) ----
 
     const string RotPrefix = "KOMPAS_DAVINCHI_";

@@ -34,6 +34,7 @@ namespace KompasMcp
       KompasHost.ConfigureFromArgs(args);
       if (HasFlag(args, "--panel")) return PanelMain();
       StdioLoop();
+      KompasHost.Shutdown();
       Ui.DavinciPanel.Close();
       Log.Write("=== kompas-mcp exit ===");
       return 0;

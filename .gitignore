@@ -25,6 +25,9 @@ tests/fix_encoding.ps1
 /avatar.png
 /avatar.ico
 
+# личные настройки копилота (шаблон для выпуска пишет package.ps1)
+davinci/davinci.json
+
 # промежуточные артефакты build-native.ps1 (регенерируются)
 davinci/DavinciNative.il
 davinci/DavinciNative_exports.il

@@ -199,9 +199,9 @@ namespace KompasMcp.Tools
         ILayoutSheet sheet = (ILayoutSheet)doc7.LayoutSheets.ItemByNumber[1];
         IStamp stamp = (IStamp)sheet.Stamp;
         if (partNumber != null && partNumber.Length > 0)
-          stamp.Text[(int)ksStampEnum.ksStPartNumber].Str = partNumber; // графа 2 — обозначение
+          stamp.Text[Tools2D.StampDesignation].Str = partNumber;
         if (description != null && description.Length > 0)
-          stamp.Text[(int)ksStampEnum.ksStDescription].Str = description; // графа 1 — наименование
+          stamp.Text[Tools2D.StampName].Str = description;
         stamp.Text[(int)ksStampEnum.ksStSheetNumber].Str = "1";
         stamp.Text[(int)ksStampEnum.ksStNumberOfSheets].Str = "1";
         stamp.Update();
